@@ -1,4 +1,4 @@
-# Título do Projeto
+# A Fábrica de Pins: Sistematização de controles em planilhas 
 
 `CURSO: Sistemas de Informação`
 
@@ -6,19 +6,21 @@
 
 `SEMESTRE: 8º`
 
-Descrever resumidamente, em um ou dois parágrafos, o projeto que está sendo desenvolvido.
+Este projeto tem como objetivo desenvolver uma aplicação web para a Fábrica de Pins, centralizando em um único sistema os processos de venda e gestão do negócio. A solução contempla funcionalidades de cadastro de usuários, organização de categorias e produtos, montagem de pedidos, aplicação de cupons e acompanhamento do status de compra.
+
+O projeto também inclui recursos administrativos para apoiar a operação e a tomada de decisão, com controle de parâmetros do sistema e geração de relatórios de vendas, receita, produção e estoque. Dessa forma, a plataforma busca aumentar a eficiência operacional, melhorar o atendimento ao cliente e oferecer uma base tecnológica escalável para o crescimento da empresa.
 
 ## Integrantes
 
-* Nome completo do aluno 1
-* Nome completo do aluno 2
-* Nome completo do aluno 3
-* Nome completo do aluno 4
-* Nome completo do aluno 5
-* Nome completo do aluno 6
+* Allan Diego Pereira do Nascimento 
+* Breno Makay Samora de Souza 
+* Rafael Augusto Prado Alves
+* Samantha Chiachio Cardoso 
+* Vinícius Delmo de Oliveira Melo 
+* Yohan Gregorio dos Santos 
 
 
 ## Orientador
 
-* Nome completo do professor 1
+* Prof. Simone Fernandes Queiroz 
 

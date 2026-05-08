@@ -1,0 +1,55 @@
+import { z } from 'zod'
+
+export const orderStatusEnum = z.enum([
+  'rascunho',
+  'confirmado',
+  'enviado',
+  'cancelado',
+])
+
+export type OrderStatus = z.infer<typeof orderStatusEnum>
+
+export const canalAquisicaoEnum = z.enum([
+  'instagram',
+  'site',
+  'marketplace',
+  'loja',
+  'indicacao',
+  'outro',
+])
+
+export type CanalAquisicao = z.infer<typeof canalAquisicaoEnum>
+
+export const modalidadePedidoEnum = z.enum(['pronta_entrega', 'pre_venda'])
+
+export type ModalidadePedido = z.infer<typeof modalidadePedidoEnum>
+
+export const orderItemSchema = z.object({
+  produtoId: z.string().min(1),
+  quantidade: z.coerce.number().int().positive(),
+  precoUnitario: z.coerce.number().positive(),
+})
+
+export const orderCreateSchema = z.object({
+  clienteId: z.string().min(1, 'Selecione o cliente'),
+  itens: z.array(orderItemSchema).min(1, 'Adicione pelo menos um item'),
+  status: orderStatusEnum.default('rascunho'),
+  modalidade: modalidadePedidoEnum.default('pronta_entrega'),
+  canalAquisicao: canalAquisicaoEnum.default('instagram'),
+  observacao: z.string().optional().default(''),
+  valorFrete: z.coerce.number().min(0).default(0),
+  cupons: z.array(z.string()).default([]),
+})
+
+export type OrderCreateInput = z.input<typeof orderCreateSchema>
+export type OrderCreateValues = z.infer<typeof orderCreateSchema>
+
+export const orderUpdateSchema = z.object({
+  status: orderStatusEnum.optional(),
+  modalidade: modalidadePedidoEnum.optional(),
+  canalAquisicao: canalAquisicaoEnum.optional(),
+  producaoIniciadaEm: z.union([z.string(), z.null()]).optional(),
+  producaoFinalizadaEm: z.union([z.string(), z.null()]).optional(),
+})
+
+export type OrderUpdateValues = z.infer<typeof orderUpdateSchema>
