@@ -2,32 +2,47 @@
 # Visit https://bit.ly/cffinit to generate yours today!
 
 cff-version: 1.2.0
-title: Web Application Template
+title: 'A Fábrica de Pins: Sistematização de controles em planilhas'
 message: >-
-  Repositório padrão para o Eixo 1 - Projeto 1: Aplicações
-  Web da PUC Minas.
+  Se você utilizar este projeto acadêmico, por favor cite
+  este repositório.
 type: software
 authors:
-  - given-names: Aluno 1
-    family-names: Nome Completo
-    email: aluno@pucminas.br
+  - given-names: Allan Diego Pereira
+    family-names: do Nascimento
     affiliation: PUC Minas
-  - given-names: Hugo
-    name-particle: 'B '
-    family-names: de Paula
-    name-suffix: Prof.
-    email: hugo@pucminas.br
+  - given-names: Breno Makay Samora
+    family-names: de Souza
     affiliation: PUC Minas
-    orcid: 'https://orcid.org/0000-0002-6193-3205'
+  - given-names: Rafael Augusto Prado
+    family-names: Alves
+    affiliation: PUC Minas
+  - given-names: Samantha Chiachio
+    family-names: Cardoso
+    affiliation: PUC Minas
+  - given-names: Vinícius Delmo de Oliveira
+    family-names: Melo
+    affiliation: PUC Minas
+  - given-names: Yohan Gregorio
+    family-names: dos Santos
+    affiliation: PUC Minas
 repository-code: >-
-  https://github.com/ICEI-PUC-Minas-PMV-SI/WebApplicationProject-Template
+  https://github.com/ICEI-PUC-Minas-PMV-SI/pmv-si-2026-1-pe8-t1-eixo-8-t1-g1-a-fabrica-de-pins
 abstract: >-
-  Descrever resumidamente, em um ou dois parágrafos, o
-  projeto que foi desenvolvido.
+  Este projeto desenvolve uma aplicação web para a Fábrica
+  de Pins, centralizando em um único sistema os processos de
+  venda e gestão do negócio, com funcionalidades de cadastro
+  de usuários, organização de categorias e produtos,
+  montagem de pedidos, aplicação de cupons e acompanhamento
+  do status de compra.
+
+  A solução inclui recursos administrativos para apoiar a
+  operação e a tomada de decisão, como controle de parâmetros
+  do sistema e geração de relatórios de vendas, receita,
+  produção e estoque.
 keywords:
-  - Desenvolvimento Web
-  - HTML
-  - CSS
-  - JavaScript
-  - Template
-date-released: '2024-06-23'
+  - Trabalho de Conclusão de Curso
+  - Sistemas de Informação
+  - Aplicação Web
+  - Gestão Empresarial
+date-released: '2026-05-07'
