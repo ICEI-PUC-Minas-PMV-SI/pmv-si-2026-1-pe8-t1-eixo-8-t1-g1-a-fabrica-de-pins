@@ -2,9 +2,15 @@ import { z } from 'zod'
 
 export const orderStatusEnum = z.enum([
   'rascunho',
-  'confirmado',
+  'aguardando_pagamento',
+  'pagamento_confirmado',
+  'em_producao',
+  'em_separacao',
+  'aguardando_envio',
   'enviado',
+  'entregue',
   'cancelado',
+  'reembolsado',
 ])
 
 export type OrderStatus = z.infer<typeof orderStatusEnum>

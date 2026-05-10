@@ -1,9 +1,12 @@
 import type { ComponentType, ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Bar,
   BarChart,
   CartesianGrid,
   Legend,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -13,15 +16,14 @@ import {
   AlertTriangle,
   CalendarDays,
   Clock,
-  Coins,
   Factory,
   LayoutGrid,
   Package,
-  Percent,
   TrendingUp,
   Wallet,
 } from 'lucide-react'
 
+import { TablePaginationBar } from '@/components/layout/TablePaginationBar'
 import {
   Card,
   CardContent,
@@ -29,7 +31,14 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Label } from '@/components/ui/label'
 import {
   Table,
   TableBody,
@@ -38,18 +47,100 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import {
-  canalAquisicaoLabel,
-  modalidadeLabel,
-  orderStatusLabel,
-} from '@/modules/orders/lib/order-labels'
-import type { ReportSnapshot } from '../../../services/reports'
+import { canalAquisicaoLabel } from '@/modules/orders/lib/order-labels'
+import type {
+  ProdutoEstoqueDTO,
+  RelatorioEstoque,
+  RelatorioPlanejamento,
+  RelatorioProducao,
+  RelatorioReceita,
+  RelatorioResumo,
+} from '@/services/reports.api'
 import { formatCurrencyBRL } from '@/utils/format'
 import { cn } from '@/utils/cn'
 
-function formatHours(h: number | null): string {
+/** Cor dos gráficos de relatório (funciona em SVG; evita `hsl(var(--primary))`). */
+const RELATORIO_CHART = '#c59a6c'
+
+const ESTOQUE_PAGE_SIZE = 20
+
+function formatHours(h: number): string {
   if (h == null || Number.isNaN(h)) return '—'
-  return `${h.toFixed(1)} h`
+  return `${Number(h).toFixed(1)} h`
+}
+
+function canalApiToLabel(canal: string): string {
+  const u = canal.trim().toUpperCase()
+  const map: Record<string, keyof typeof canalAquisicaoLabel> = {
+    INSTAGRAM: 'instagram',
+    SITE: 'site',
+    MARKETPLACE: 'marketplace',
+    LOJA: 'loja',
+    INDICACAO: 'indicacao',
+    INDICAÇÃO: 'indicacao',
+    OUTRO: 'outro',
+  }
+  const k = map[u]
+  return k ? canalAquisicaoLabel[k] : canal
+}
+
+/** Status de pedido retornado pelo relatório de produção / gestão (API em UPPER_SNAKE). */
+const gestaoPedidoStatusLabel: Record<string, string> = {
+  RASCUNHO: 'Rascunho',
+  AGUARDANDO_PAGAMENTO: 'Aguardando pagamento',
+  PAGAMENTO_CONFIRMADO: 'Pagamento confirmado',
+  EM_PRODUCAO: 'Em produção',
+  EM_SEPARACAO: 'Em separação',
+  AGUARDANDO_ENVIO: 'Aguardando envio',
+  ENVIADO: 'Enviado',
+  ENTREGUE: 'Entregue',
+  CANCELADO: 'Cancelado',
+  REEMBOLSADO: 'Reembolsado',
+  CONFIRMADO: 'Confirmado',
+}
+
+function gestaoStatusParaExibicao(raw: string): string {
+  const k = raw.trim().toUpperCase()
+  return gestaoPedidoStatusLabel[k] ?? raw.replace(/_/g, ' ').toLowerCase()
+}
+
+function normalizeSituacaoEstoque(s: string): string {
+  return s.trim().toUpperCase()
+}
+
+function situacaoEstoqueLabel(codigo: string): string {
+  const k = normalizeSituacaoEstoque(codigo)
+  const map: Record<string, string> = {
+    ABAIXO_DO_MINIMO: 'Abaixo do mínimo',
+    ACIMA_DO_MAXIMO: 'Acima do máximo',
+    SEM_ESTOQUE: 'Sem estoque',
+    NORMAL: 'Normal',
+    OK: 'Normal',
+  }
+  return map[k] ?? codigo.replace(/_/g, ' ').toLowerCase()
+}
+
+function situacaoEstoqueBadgeClass(codigo: string): string {
+  const k = normalizeSituacaoEstoque(codigo)
+  if (k === 'SEM_ESTOQUE' || k === 'ABAIXO_DO_MINIMO') {
+    return 'bg-destructive/12 text-destructive'
+  }
+  if (k === 'ACIMA_DO_MAXIMO') {
+    return 'border border-amber-800/25 bg-amber-100 text-amber-950 dark:border-amber-400/35 dark:bg-amber-950/70 dark:text-amber-50'
+  }
+  return 'bg-muted text-muted-foreground'
+}
+
+function rankSituacaoEstoque(codigo: string): number {
+  const k = normalizeSituacaoEstoque(codigo)
+  const order: Record<string, number> = {
+    SEM_ESTOQUE: 0,
+    ABAIXO_DO_MINIMO: 1,
+    ACIMA_DO_MAXIMO: 2,
+    NORMAL: 3,
+    OK: 3,
+  }
+  return order[k] ?? 4
 }
 
 function StatHighlight({
@@ -91,8 +182,16 @@ function StatHighlight({
   )
 }
 
-export function ReportOverviewTab({ data }: { data: ReportSnapshot }) {
-  const alertas = data.stock.filter((r: { abaixoDoMinimo: boolean }) => r.abaixoDoMinimo).length
+const defaultResumo: RelatorioResumo = {
+  estoqueCritico: 0,
+  receitaBruta: 0,
+  receitaLiquida: 0,
+  lucroEstimado: 0,
+  tempoMedioProducao: 0,
+}
+
+export function ReportOverviewTab({ resumo }: { resumo?: RelatorioResumo }) {
+  const r = resumo ?? defaultResumo
 
   return (
     <div className="space-y-8">
@@ -102,10 +201,9 @@ export function ReportOverviewTab({ data }: { data: ReportSnapshot }) {
             <LayoutGrid className="h-5 w-5" />
           </div>
           <div>
-            <h3 className="font-semibold text-foreground">Resumo do período</h3>
+            <h3 className="font-semibold text-foreground">Visão geral</h3>
             <p className="text-sm text-muted-foreground">
-              Indicadores-chave com os filtros atuais. Use as outras abas para
-              análises detalhadas.
+              Indicadores consolidados do período e filtros ativos.
             </p>
           </div>
         </div>
@@ -114,113 +212,126 @@ export function ReportOverviewTab({ data }: { data: ReportSnapshot }) {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatHighlight
           icon={AlertTriangle}
-          label="Produtos em alerta"
-          value={alertas}
-          hint={
-            alertas === 0
-              ? 'Nenhum item abaixo do estoque mínimo.'
-              : 'Revise reposição na aba Estoque.'
-          }
+          label="Estoque crítico"
+          value={r.estoqueCritico}
+          hint="Itens abaixo do mínimo ou em alerta"
         />
         <StatHighlight
           icon={Wallet}
           label="Receita bruta"
-          value={formatCurrencyBRL(data.revenue.receitaBruta)}
-          hint={`${data.revenue.pedidosContados} pedidos elegíveis`}
+          value={formatCurrencyBRL(r.receitaBruta)}
+        />
+        <StatHighlight
+          icon={TrendingUp}
+          label="Lucro estimado"
+          value={formatCurrencyBRL(r.lucroEstimado)}
         />
         <StatHighlight
           icon={Clock}
           label="Tempo médio de produção"
-          value={formatHours(data.producao.mediaHorasProducao)}
-          hint={`${data.producao.registrosComDuracao} registros com início e fim`}
+          value={formatHours(r.tempoMedioProducao)}
         />
-        <StatHighlight
-          icon={TrendingUp}
-          label="Receita líquida estimada"
-          value={formatCurrencyBRL(data.revenue.receitaLiquidaEstimada)}
-          hint={
-            data.revenue.custoOperacionalPeriodo > 0
-              ? `Após custo operacional de ${formatCurrencyBRL(data.revenue.custoOperacionalPeriodo)}`
-              : 'Informe custo operacional nos filtros para margem líquida.'
-          }
-        />
-      </div>
-
-      <Separator />
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="border-primary/15 bg-muted/30">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base font-semibold">
-              <Package className="h-4 w-4 text-primary" />
-              Estoque & demanda
-            </CardTitle>
-            <CardDescription>
-              Unidades vendidas no período (somando todos os produtos):{' '}
-              <strong className="text-foreground">
-                {data.stock.reduce(
-                  (a: number, r: { unidadesVendidasPeriodo: number }) =>
-                    a + r.unidadesVendidasPeriodo,
-                  0,
-                )}
-              </strong>
-            </CardDescription>
-          </CardHeader>
-        </Card>
-        <Card className="border-primary/15 bg-muted/30">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base font-semibold">
-              <Coins className="h-4 w-4 text-primary" />
-              Mix de vendas
-            </CardTitle>
-            <CardDescription>
-              Total de itens vendidos (unidades):{' '}
-              <strong className="text-foreground">
-                {data.revenue.itensVendidos}
-              </strong>
-            </CardDescription>
-          </CardHeader>
-        </Card>
-        <Card className="border-primary/15 bg-muted/30">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base font-semibold">
-              <Factory className="h-4 w-4 text-primary" />
-              Produção
-            </CardTitle>
-            <CardDescription>
-              Pedidos sem registro completo de produção:{' '}
-              <strong className="text-foreground">
-                {data.producao.pedidosSemTimestamps}
-              </strong>
-            </CardDescription>
-          </CardHeader>
-        </Card>
       </div>
     </div>
   )
 }
 
-export function ReportStockTab({ data }: { data: ReportSnapshot }) {
-  const alertas = data.stock.filter((r: { abaixoDoMinimo: boolean }) => r.abaixoDoMinimo).length
+type EstoqueFiltroSit =
+  | 'todos'
+  | 'NORMAL'
+  | 'ABAIXO_DO_MINIMO'
+  | 'ACIMA_DO_MAXIMO'
+  | 'SEM_ESTOQUE'
+
+export function ReportStockTab({ estoque }: { estoque?: RelatorioEstoque }) {
+  const [filtro, setFiltro] = useState<EstoqueFiltroSit>('todos')
+  const [pageIndex, setPageIndex] = useState(0)
+
+  const rows = useMemo(() => {
+    const list = estoque?.produtos ?? []
+    const filtered =
+      filtro === 'todos'
+        ? [...list]
+        : list.filter((p) => normalizeSituacaoEstoque(p.situacao) === filtro)
+    filtered.sort((a, b) => {
+      const d = rankSituacaoEstoque(a.situacao) - rankSituacaoEstoque(b.situacao)
+      if (d !== 0) return d
+      return a.nome.localeCompare(b.nome, 'pt-BR')
+    })
+    return filtered
+  }, [estoque?.produtos, filtro])
+
+  const totalElements = rows.length
+  const totalPages =
+    totalElements === 0 ? 0 : Math.ceil(totalElements / ESTOQUE_PAGE_SIZE)
+
+  useEffect(() => {
+    setPageIndex(0)
+  }, [filtro])
+
+  useEffect(() => {
+    setPageIndex((p) => {
+      if (totalPages === 0) return 0
+      return Math.min(p, totalPages - 1)
+    })
+  }, [totalPages])
+
+  const pageRows = useMemo(
+    () =>
+      rows.slice(
+        pageIndex * ESTOQUE_PAGE_SIZE,
+        pageIndex * ESTOQUE_PAGE_SIZE + ESTOQUE_PAGE_SIZE,
+      ),
+    [rows, pageIndex],
+  )
+
+  const crit = estoque?.estoqueCritico ?? 0
+  const exc = estoque?.estoqueExcesso ?? 0
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="space-y-1">
-          <h3 className="text-lg font-semibold tracking-tight">
-            Monitoramento de estoque
-          </h3>
+          <h3 className="text-lg font-semibold tracking-tight">Estoque</h3>
           <p className="max-w-2xl text-sm text-muted-foreground">
-            Compare estoque atual ao mínimo definido e à demanda do período
-            (pedidos confirmados ou enviados).
+            Situação por produto conforme a API de gestão.
           </p>
         </div>
-        <div className="flex items-center gap-2 rounded-lg border bg-muted/40 px-4 py-2 text-sm">
-          <AlertTriangle className="h-4 w-4 text-destructive" />
-          <span>
-            <strong className="font-semibold text-foreground">{alertas}</strong>{' '}
-            produto(s) abaixo do mínimo
-          </span>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="grid gap-2">
+            <Label>Exibir</Label>
+            <Select
+              value={filtro}
+              onValueChange={(v) => setFiltro(v as EstoqueFiltroSit)}
+            >
+              <SelectTrigger className="w-[min(100%,280px)] sm:w-[280px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="NORMAL">Normal</SelectItem>
+                <SelectItem value="ABAIXO_DO_MINIMO">Abaixo do mínimo</SelectItem>
+                <SelectItem value="ACIMA_DO_MAXIMO">Acima do máximo</SelectItem>
+                <SelectItem value="SEM_ESTOQUE">Sem estoque</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2 rounded-lg border bg-muted/40 px-4 py-2 text-sm">
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+              <span>
+                <strong className="font-semibold text-foreground">{crit}</strong>{' '}
+                crítico(s)
+              </span>
+            </div>
+            <div className="flex items-center gap-2 rounded-lg border border-amber-800/25 bg-amber-100 px-4 py-2 text-sm text-amber-950 shadow-sm dark:border-amber-400/35 dark:bg-amber-950/70 dark:text-amber-50">
+              <TrendingUp className="h-4 w-4 shrink-0 text-amber-800 dark:text-amber-200" />
+              <span className="text-amber-950 dark:text-amber-50">
+                <strong className="font-semibold">{exc}</strong> possível(is)
+                excesso
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -230,11 +341,8 @@ export function ReportStockTab({ data }: { data: ReportSnapshot }) {
             <Package className="h-5 w-5 text-primary" />
             Inventário por produto
           </CardTitle>
-          <CardDescription>
-            Situação atual e vendas filtradas para antecipar rupturas ou excessos.
-          </CardDescription>
         </CardHeader>
-        <CardContent className="overflow-x-auto p-0 md:p-6">
+        <CardContent className="flex flex-col gap-4 overflow-x-auto p-0 md:p-6">
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
@@ -242,160 +350,222 @@ export function ReportStockTab({ data }: { data: ReportSnapshot }) {
                 <TableHead>Categoria</TableHead>
                 <TableHead className="text-right">Estoque</TableHead>
                 <TableHead className="text-right">Mínimo</TableHead>
-                <TableHead className="text-right">Vendido no período</TableHead>
                 <TableHead>Situação</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.stock.map(
-                (row: {
-                  produtoId: string
-                  nome: string
-                  categoria: string
-                  estoque: number
-                  estoqueMinimo: number
-                  unidadesVendidasPeriodo: number
-                  abaixoDoMinimo: boolean
-                }) => (
-                <TableRow key={row.produtoId}>
+              {pageRows.map((row: ProdutoEstoqueDTO, i: number) => (
+                <TableRow key={`${row.nome}-${pageIndex}-${i}`}>
                   <TableCell className="font-medium">{row.nome}</TableCell>
-                  <TableCell>{row.categoria}</TableCell>
+                  <TableCell>{row.categoriaNome}</TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {row.estoque}
+                    {row.quantidadeEstoque}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {row.estoqueMinimo}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {row.unidadesVendidasPeriodo}
-                  </TableCell>
                   <TableCell>
-                    {row.abaixoDoMinimo ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-destructive/12 px-2.5 py-0.5 text-xs font-medium text-destructive">
-                        <AlertTriangle className="h-3 w-3" />
-                        Abaixo do mínimo
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">OK</span>
-                    )}
+                    <span
+                      className={cn(
+                        'inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium',
+                        situacaoEstoqueBadgeClass(row.situacao),
+                      )}
+                    >
+                      {situacaoEstoqueLabel(row.situacao)}
+                    </span>
                   </TableCell>
                 </TableRow>
-                ),
-              )}
+              ))}
             </TableBody>
           </Table>
+          <TablePaginationBar
+            pageIndex={pageIndex}
+            pageSize={ESTOQUE_PAGE_SIZE}
+            totalPages={totalPages}
+            totalElements={totalElements}
+            rowCount={pageRows.length}
+            isFirst={pageIndex === 0 || totalPages === 0}
+            isLast={totalPages === 0 || pageIndex >= totalPages - 1}
+            emptyMessage="Nenhum produto no estoque para os filtros."
+            onPrev={() => setPageIndex((p) => Math.max(0, p - 1))}
+            onNext={() =>
+              setPageIndex((p) =>
+                totalPages <= 0 ? p : Math.min(totalPages - 1, p + 1),
+              )
+            }
+          />
         </CardContent>
       </Card>
     </div>
   )
 }
 
-export function ReportRevenueTab({ data }: { data: ReportSnapshot }) {
-  const custo = data.revenue.custoOperacionalPeriodo
-  const margemPct =
-    data.revenue.receitaBruta > 0 && custo > 0
-      ? ((data.revenue.receitaLiquidaEstimada / data.revenue.receitaBruta) * 100).toFixed(1)
-      : null
+const defaultReceita: RelatorioReceita = {
+  receitaBruta: 0,
+  receitaLiquida: 0,
+  quantidadePedidos: 0,
+  quantidadePedidosCancelados: 0,
+  totalItens: 0,
+  ticketMedio: 0,
+}
+
+export function ReportRevenueTab({
+  receita,
+  historicoReceita,
+}: {
+  receita?: RelatorioReceita
+  historicoReceita?: RelatorioPlanejamento['historicoVendas']
+}) {
+  const r = receita ?? defaultReceita
+  const lineData = (historicoReceita ?? []).map((h, i) => {
+    const t = h.periodo ? Date.parse(h.periodo) : NaN
+    const labelFallback =
+      !Number.isNaN(t) ? new Date(t).toLocaleDateString('pt-BR') : `Ponto ${i + 1}`
+    return {
+      label: (h.label && String(h.label).trim()) || labelFallback,
+      receita: Number(h.receita),
+    }
+  })
+  const maxReceita = Math.max(
+    1,
+    ...lineData.map((d) => (Number.isFinite(d.receita) ? d.receita : 0)),
+  )
 
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h3 className="text-lg font-semibold tracking-tight">
-          Receita e margem estimada
-        </h3>
+        <h3 className="text-lg font-semibold tracking-tight">Receita</h3>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Agregação de pedidos confirmados ou enviados no período. O custo
-          operacional é informado nos filtros globais.
+          Resumo financeiro do período filtrado.
+        </p>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <StatHighlight
+          icon={Wallet}
+          label="Receita bruta"
+          value={formatCurrencyBRL(r.receitaBruta)}
+        />
+        <StatHighlight
+          icon={TrendingUp}
+          label="Receita líquida"
+          value={formatCurrencyBRL(r.receitaLiquida)}
+        />
+        <StatHighlight
+          icon={Package}
+          label="Total de itens"
+          value={r.totalItens}
+        />
+        <StatHighlight
+          icon={TrendingUp}
+          label="Pedidos"
+          value={r.quantidadePedidos}
+          hint={`${r.quantidadePedidosCancelados} cancelados`}
+        />
+        <StatHighlight
+          icon={Wallet}
+          label="Ticket médio"
+          value={formatCurrencyBRL(r.ticketMedio)}
+        />
+      </div>
+
+      <Card className="shadow-sm">
+        <CardHeader className="border-b bg-muted/30">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <TrendingUp className="h-4 w-4 text-primary" />
+            Receita no tempo
+          </CardTitle>
+          <CardDescription>
+            Evolução da receita por período (planejamento).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-6">
+          {lineData.length === 0 ? (
+            <div className="flex h-[280px] items-center justify-center text-sm text-muted-foreground">
+              Sem histórico para o período.
+            </div>
+          ) : (
+            <div className="h-[280px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={lineData} margin={{ top: 12, left: 8, right: 16, bottom: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="label" tickLine={false} tick={{ fontSize: 12 }} />
+                <YAxis
+                  tickLine={false}
+                  domain={[0, maxReceita]}
+                  tickFormatter={(v) =>
+                    new Intl.NumberFormat('pt-BR', { notation: 'compact' }).format(
+                      Number(v),
+                    )
+                  }
+                />
+                <Tooltip
+                  formatter={(v: number | string) =>
+                    formatCurrencyBRL(Number(v))
+                  }
+                />
+                <Legend />
+                <Line
+                  type="monotone"
+                  dataKey="receita"
+                  name="Receita"
+                  stroke={RELATORIO_CHART}
+                  strokeWidth={2}
+                  dot={{ r: 4, fill: RELATORIO_CHART, strokeWidth: 0 }}
+                  activeDot={{ r: 6, fill: RELATORIO_CHART }}
+                  isAnimationActive={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+const defaultProducao: RelatorioProducao = {
+  tempoMedioProducaoHoras: 0,
+  quantidadeProntaEntrega: 0,
+  quantidadePreVenda: 0,
+  quantidadeSobDemanda: 0,
+  pedidosPorStatus: [],
+  produtosMaisDemorados: [],
+}
+
+export function ReportProductionTab({ producao }: { producao?: RelatorioProducao }) {
+  const p = producao ?? defaultProducao
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-1">
+        <h3 className="text-lg font-semibold tracking-tight">Produção</h3>
+        <p className="max-w-2xl text-sm text-muted-foreground">
+          Tempos e volumes conforme relatório de gestão.
         </p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatHighlight
-          icon={Wallet}
-          label="Receita bruta"
-          value={formatCurrencyBRL(data.revenue.receitaBruta)}
-          hint="Soma dos pedidos elegíveis"
-        />
-        <StatHighlight
-          icon={Package}
-          label="Itens vendidos"
-          value={data.revenue.itensVendidos}
-          hint="Unidades"
-        />
-        <StatHighlight
-          icon={TrendingUp}
-          label="Pedidos contabilizados"
-          value={data.revenue.pedidosContados}
-          hint="Confirmados ou enviados"
-        />
-        <StatHighlight
-          icon={Percent}
-          label="Receita líquida estimada"
-          value={formatCurrencyBRL(data.revenue.receitaLiquidaEstimada)}
-          hint={
-            custo > 0
-              ? `Custo no período: ${formatCurrencyBRL(custo)}${margemPct ? ` · ~${margemPct}% da bruta` : ''}`
-              : 'Defina custo operacional nos filtros'
-          }
-        />
-      </div>
-
-      <Card className="border-primary/20 bg-muted/20">
-        <CardContent className="flex flex-wrap items-center gap-6 py-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/12">
-              <Coins className="h-6 w-6 text-primary" />
-            </div>
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Custo operacional (filtro)
-              </p>
-              <p className="text-xl font-semibold tabular-nums">
-                {formatCurrencyBRL(custo)}
-              </p>
-            </div>
-          </div>
-          <Separator orientation="vertical" className="hidden h-12 sm:block" />
-          <p className="max-w-md text-sm text-muted-foreground">
-            O valor é único para o período selecionado e é subtraído da receita
-            bruta apenas para uma estimativa de margem — não substitui
-            contabilidade formal.
-          </p>
-        </CardContent>
-      </Card>
-    </div>
-  )
-}
-
-export function ReportProductionTab({ data }: { data: ReportSnapshot }) {
-  return (
-    <div className="space-y-6">
-      <div className="space-y-1">
-        <h3 className="text-lg font-semibold tracking-tight">
-          Tempo de produção
-        </h3>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Estatísticas com base em início e fim da produção registrados nos
-          pedidos do período filtrado.
-        </p>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <StatHighlight
           icon={Clock}
-          label="Tempo médio"
-          value={formatHours(data.producao.mediaHorasProducao)}
+          label="Tempo médio de produção"
+          value={formatHours(p.tempoMedioProducaoHoras)}
         />
         <StatHighlight
-          icon={Clock}
-          label="Mediana"
-          value={formatHours(data.producao.medianaHorasProducao)}
+          icon={Factory}
+          label="Pronta entrega"
+          value={p.quantidadeProntaEntrega}
         />
         <StatHighlight
-          icon={AlertTriangle}
-          label="Sem registro completo"
-          value={data.producao.pedidosSemTimestamps}
-          hint={`${data.producao.registrosComDuracao} pedidos com duração calculada`}
+          icon={Factory}
+          label="Pré-venda"
+          value={p.quantidadePreVenda}
+        />
+        <StatHighlight
+          icon={Factory}
+          label="Sob demanda"
+          value={p.quantidadeSobDemanda}
         />
       </div>
 
@@ -404,45 +574,7 @@ export function ReportProductionTab({ data }: { data: ReportSnapshot }) {
           <CardHeader className="border-b bg-muted/30">
             <CardTitle className="flex items-center gap-2 text-base">
               <Factory className="h-4 w-4 text-primary" />
-              Por modalidade
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0 md:p-6">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead>Modalidade</TableHead>
-                  <TableHead className="text-right">Média</TableHead>
-                  <TableHead className="text-right">Registros</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.producao.porModalidade.map(
-                  (row: {
-                    modalidade: keyof typeof modalidadeLabel
-                    mediaHoras: number | null
-                    quantidade: number
-                  }) => (
-                  <TableRow key={row.modalidade}>
-                    <TableCell>{modalidadeLabel[row.modalidade]}</TableCell>
-                    <TableCell className="text-right">
-                      {formatHours(row.mediaHoras)}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {row.quantidade}
-                    </TableCell>
-                  </TableRow>
-                  ),
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-        <Card className="shadow-sm">
-          <CardHeader className="border-b bg-muted/30">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <CalendarDays className="h-4 w-4 text-primary" />
-              Por status do pedido
+              Pedidos por status
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0 md:p-6">
@@ -450,28 +582,46 @@ export function ReportProductionTab({ data }: { data: ReportSnapshot }) {
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Média</TableHead>
-                  <TableHead className="text-right">Registros</TableHead>
+                  <TableHead className="text-right">Quantidade</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.producao.porStatus.map(
-                  (row: {
-                    status: keyof typeof orderStatusLabel
-                    mediaHoras: number | null
-                    quantidade: number
-                  }) => (
-                  <TableRow key={row.status}>
-                    <TableCell>{orderStatusLabel[row.status]}</TableCell>
-                    <TableCell className="text-right">
-                      {formatHours(row.mediaHoras)}
-                    </TableCell>
+                {p.pedidosPorStatus.map((row, i) => (
+                  <TableRow key={`${row.status}-${i}`}>
+                    <TableCell>{gestaoStatusParaExibicao(row.status)}</TableCell>
                     <TableCell className="text-right tabular-nums">
                       {row.quantidade}
                     </TableCell>
                   </TableRow>
-                  ),
-                )}
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+        <Card className="shadow-sm">
+          <CardHeader className="border-b bg-muted/30">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Clock className="h-4 w-4 text-primary" />
+              Produtos mais demorados
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0 md:p-6">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>Produto</TableHead>
+                  <TableHead className="text-right">Tempo (h)</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {p.produtosMaisDemorados.map((row, i) => (
+                  <TableRow key={`${row.nomeProduto}-${i}`}>
+                    <TableCell className="font-medium">{row.nomeProduto}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatHours(row.tempoProducao)}
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           </CardContent>
@@ -481,103 +631,126 @@ export function ReportProductionTab({ data }: { data: ReportSnapshot }) {
   )
 }
 
-export function ReportPlanningTab({ data }: { data: ReportSnapshot }) {
-  const semDadosCanal = data.planejamento.vendasPorCanal.length === 0
+export function ReportPlanningTab({
+  planejamento,
+}: {
+  planejamento?: RelatorioPlanejamento
+}) {
+  const pl = planejamento ?? {
+    receitaTotal: 0,
+    vendasPorCanal: [],
+    historicoVendas: [],
+  }
+
+  const canalChart = pl.vendasPorCanal.map((c) => ({
+    nome: canalApiToLabel(c.canal),
+    receita: c.receita,
+    pct: c.percentualParticipacao,
+    pedidos: c.quantidadePedidos,
+  }))
+
+  const histBar = pl.historicoVendas.map((h) => ({
+    label: h.label,
+    receita: h.receita,
+  }))
 
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h3 className="text-lg font-semibold tracking-tight">
-          Planejamento e sazonalidade
-        </h3>
+        <h3 className="text-lg font-semibold tracking-tight">Planejamento</h3>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Tendência de receita por mês, participação por canal e padrão por dia
-          da semana (pedidos elegíveis para receita).
+          Canais e histórico de vendas no período.
         </p>
       </div>
+
+      <StatHighlight
+        icon={Wallet}
+        label="Receita total (planejamento)"
+        value={formatCurrencyBRL(pl.receitaTotal)}
+        className="max-w-md"
+      />
 
       <div className="grid gap-6 xl:grid-cols-2">
         <Card className="shadow-sm">
           <CardHeader className="border-b bg-muted/30">
             <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-primary" />
-              Vendas por mês
-            </CardTitle>
-            <CardDescription>Valor (receita bruta no período filtrado)</CardDescription>
-          </CardHeader>
-          <CardContent className="h-[320px] pt-6">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data.planejamento.vendasPorMes}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis dataKey="label" tickLine={false} />
-                <YAxis
-                  tickLine={false}
-                  tickFormatter={(v) =>
-                    new Intl.NumberFormat('pt-BR', {
-                      notation: 'compact',
-                    }).format(Number(v))
-                  }
-                />
-                <Tooltip
-                  formatter={(v: number) => formatCurrencyBRL(Number(v))}
-                />
-                <Bar
-                  dataKey="valor"
-                  fill="var(--color-primary)"
-                  radius={[6, 6, 0, 0]}
-                  name="Valor"
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardHeader className="border-b bg-muted/30">
-            <CardTitle className="flex items-center gap-2">
               <LayoutGrid className="h-5 w-5 text-primary" />
-              Por canal de aquisição
+              Por canal
             </CardTitle>
-            <CardDescription>Valor total no período</CardDescription>
+            <CardDescription>Receita e participação</CardDescription>
           </CardHeader>
           <CardContent className="h-[320px] pt-6">
-            {semDadosCanal ? (
+            {canalChart.length === 0 ? (
               <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                Nenhum dado de canal no período — ajuste os filtros.
+                Nenhum dado de canal no período.
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   layout="vertical"
-                  data={data.planejamento.vendasPorCanal.map((c) => ({
-                    ...c,
-                    nome: canalAquisicaoLabel[c.canal],
-                  }))}
+                  data={canalChart}
                   margin={{ left: 8, right: 16 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis
                     type="number"
                     tickFormatter={(v) =>
-                      new Intl.NumberFormat('pt-BR', {
-                        notation: 'compact',
-                      }).format(Number(v))
+                      new Intl.NumberFormat('pt-BR', { notation: 'compact' }).format(
+                        Number(v),
+                      )
                     }
                   />
-                  <YAxis
-                    type="category"
-                    dataKey="nome"
-                    width={96}
-                    tickLine={false}
-                  />
+                  <YAxis type="category" dataKey="nome" width={96} tickLine={false} />
                   <Tooltip
-                    formatter={(v: number) => formatCurrencyBRL(Number(v))}
+                    formatter={(v: number, name: string) => {
+                      if (name === 'receita') return formatCurrencyBRL(Number(v))
+                      return String(v)
+                    }}
                   />
                   <Bar
-                    dataKey="valor"
-                    fill="oklch(0.55 0.12 240)"
+                    dataKey="receita"
+                    fill={RELATORIO_CHART}
                     radius={[0, 6, 6, 0]}
-                    name="Valor"
+                    name="receita"
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm">
+          <CardHeader className="border-b bg-muted/30">
+            <CardTitle className="flex items-center gap-2">
+              <CalendarDays className="h-5 w-5 text-primary" />
+              Histórico de vendas
+            </CardTitle>
+            <CardDescription>Receita por período</CardDescription>
+          </CardHeader>
+          <CardContent className="h-[320px] pt-6">
+            {histBar.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                Sem histórico no período.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={histBar}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <XAxis dataKey="label" tickLine={false} />
+                  <YAxis
+                    tickLine={false}
+                    tickFormatter={(v) =>
+                      new Intl.NumberFormat('pt-BR', { notation: 'compact' }).format(
+                        Number(v),
+                      )
+                    }
+                  />
+                  <Tooltip formatter={(v: number) => formatCurrencyBRL(Number(v))} />
+                  <Bar
+                    dataKey="receita"
+                    fill={RELATORIO_CHART}
+                    radius={[6, 6, 0, 0]}
+                    name="Receita"
                   />
                 </BarChart>
               </ResponsiveContainer>
@@ -585,43 +758,6 @@ export function ReportPlanningTab({ data }: { data: ReportSnapshot }) {
           </CardContent>
         </Card>
       </div>
-
-      <Card className="shadow-sm">
-        <CardHeader className="border-b bg-muted/30">
-          <CardTitle className="flex items-center gap-2">
-            <CalendarDays className="h-5 w-5 text-primary" />
-            Volume por dia da semana
-          </CardTitle>
-          <CardDescription>
-            Receita agregada por dia da semana (pedidos elegíveis)
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="h-[300px] pt-6">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data.planejamento.volumePorDiaSemana}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-              <XAxis dataKey="label" />
-              <YAxis
-                tickFormatter={(v) =>
-                  new Intl.NumberFormat('pt-BR', {
-                    notation: 'compact',
-                  }).format(Number(v))
-                }
-              />
-              <Tooltip
-                formatter={(v: number) => formatCurrencyBRL(Number(v))}
-              />
-              <Legend />
-              <Bar
-                dataKey="valor"
-                fill="oklch(0.48 0.08 175)"
-                name="Valor"
-                radius={[6, 6, 0, 0]}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
     </div>
   )
 }

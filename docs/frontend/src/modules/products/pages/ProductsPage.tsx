@@ -64,7 +64,8 @@ export function ProductsPage() {
             <div className="space-y-1.5">
               <CardTitle>Produtos</CardTitle>
               <CardDescription>
-                O estoque diminui ao criar pedidos confirmados ou enviados; use{' '}
+                O estoque diminui ao criar pedidos com pagamento confirmado ou em
+                etapas posteriores (ex.: enviados); use{' '}
                 <span className="font-medium text-foreground">
                   Editar produto
                 </span>{' '}

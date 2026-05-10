@@ -1,19 +1,18 @@
 import { z } from 'zod'
 
-import {
-  canalAquisicaoEnum,
-  modalidadePedidoEnum,
-} from '@/schemas/order.schema'
+import { canalAquisicaoEnum } from '@/schemas/order.schema'
 
-/** Filtros da tela de relatórios (período + opcionais). */
+/** Alinha a `TipoCliente` do cadastro (varejo vs revenda). */
+export const tipoClienteRelatorioEnum = z.enum(['VAREJO', 'REVENDA'])
+
+/** Filtros dos relatórios (API `/gestao/relatorios/*`). */
 export const reportFiltersSchema = z.object({
   dataInicio: z.string().min(1),
   dataFim: z.string().min(1),
-  custoOperacionalPeriodo: z.coerce.number().nonnegative().optional(),
   canalAquisicao: canalAquisicaoEnum.optional(),
-  modalidade: modalidadePedidoEnum.optional(),
-  /** Filtra pedidos que tenham pelo menos um item nesta categoria */
+  /** Enviado como `categoriaId` após resolução pelo nome. */
   categoriaProduto: z.string().optional(),
+  tipoCliente: tipoClienteRelatorioEnum.optional(),
 })
 
 export type ReportFiltersInput = z.infer<typeof reportFiltersSchema>
