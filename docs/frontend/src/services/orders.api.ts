@@ -5,7 +5,7 @@ import type {
   OrderStatus,
   OrderUpdateValues,
 } from '@/schemas/order.schema'
-import type { Order, OrderItem } from '@/types'
+import type { Order, OrderItem, TipoCliente } from '@/types'
 import { getJson, postJson, putJson } from '@/services/http'
 import {
   FETCH_ALL_CHUNK_SIZE,
@@ -43,25 +43,41 @@ function normalizeIso(raw: unknown): string {
   return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString()
 }
 
+const STATUS_API_TO_FRONT: Record<string, OrderStatus> = {
+  RASCUNHO: 'rascunho',
+  AGUARDANDO_PAGAMENTO: 'aguardando_pagamento',
+  PAGAMENTO_CONFIRMADO: 'pagamento_confirmado',
+  EM_PRODUCAO: 'em_producao',
+  EM_SEPARACAO: 'em_separacao',
+  AGUARDANDO_ENVIO: 'aguardando_envio',
+  ENVIADO: 'enviado',
+  ENTREGUE: 'entregue',
+  CANCELADO: 'cancelado',
+  REEMBOLSADO: 'reembolsado',
+  /** Legado */
+  CONFIRMADO: 'pagamento_confirmado',
+}
+
+const STATUS_FRONT_TO_API: Record<OrderStatus, string> = {
+  rascunho: 'RASCUNHO',
+  aguardando_pagamento: 'AGUARDANDO_PAGAMENTO',
+  pagamento_confirmado: 'PAGAMENTO_CONFIRMADO',
+  em_producao: 'EM_PRODUCAO',
+  em_separacao: 'EM_SEPARACAO',
+  aguardando_envio: 'AGUARDANDO_ENVIO',
+  enviado: 'ENVIADO',
+  entregue: 'ENTREGUE',
+  cancelado: 'CANCELADO',
+  reembolsado: 'REEMBOLSADO',
+}
+
 export function mapStatusApiToFrontend(s: string): OrderStatus {
   const u = s.trim().toUpperCase()
-  const map: Record<string, OrderStatus> = {
-    RASCUNHO: 'rascunho',
-    CONFIRMADO: 'confirmado',
-    ENVIADO: 'enviado',
-    CANCELADO: 'cancelado',
-  }
-  return map[u] ?? 'rascunho'
+  return STATUS_API_TO_FRONT[u] ?? 'rascunho'
 }
 
 function mapStatusFrontendToApi(s: OrderStatus): string {
-  const map: Record<OrderStatus, string> = {
-    rascunho: 'RASCUNHO',
-    confirmado: 'CONFIRMADO',
-    enviado: 'ENVIADO',
-    cancelado: 'CANCELADO',
-  }
-  return map[s]
+  return STATUS_FRONT_TO_API[s]
 }
 
 function mapOrigemToCanal(origem: string): CanalAquisicao {
@@ -98,6 +114,13 @@ function mapModalidadeFromApi(raw: unknown): ModalidadePedido {
 
 function mapModalidadeToApi(m: ModalidadePedido): string {
   return m === 'pre_venda' ? 'PRE_VENDA' : 'PRONTA_ENTREGA'
+}
+
+function mapTipoClienteFromApi(raw: unknown): TipoCliente | undefined {
+  const u = String(raw ?? '').toUpperCase()
+  if (u === 'REVENDA') return 'REVENDA'
+  if (u === 'VAREJO') return 'VAREJO'
+  return undefined
 }
 
 function mapOrderItem(raw: unknown): OrderItem | null {
@@ -139,6 +162,10 @@ export function mapOrderFromApi(raw: unknown): Order {
         ? String(cliente.nome)
         : undefined
 
+  const tipoCliente =
+    mapTipoClienteFromApi(o.tipoCliente) ??
+    mapTipoClienteFromApi(cliente?.tipoCliente)
+
   let cupomCodigos: string[] | undefined
   const cupRaw = o.cupons
   if (Array.isArray(cupRaw) && cupRaw.length) {
@@ -157,6 +184,7 @@ export function mapOrderFromApi(raw: unknown): Order {
     id: idStr(o.id),
     clienteId,
     clienteNome,
+    tipoCliente,
     itens,
     valorTotal: num(o.valorTotal),
     status: mapStatusApiToFrontend(String(o.statusPedido ?? o.status ?? 'RASCUNHO')),
@@ -244,6 +272,33 @@ export async function listOrdersPage(
   }
 }
 
+/** Monta o corpo do PUT `/admin/pedido/completo/{id}` a partir de um pedido já carregado. */
+export function buildPedidoCompletoInputFromOrder(
+  order: Order,
+  status: OrderStatus,
+): OrderCreateValues {
+  if (!order.clienteId?.trim()) {
+    throw new Error('Pedido sem cliente')
+  }
+  if (!order.itens.length) {
+    throw new Error('Pedido sem itens')
+  }
+  return {
+    clienteId: order.clienteId,
+    itens: order.itens.map((i) => ({
+      produtoId: i.produtoId,
+      quantidade: i.quantidade,
+      precoUnitario: i.precoUnitario,
+    })),
+    status,
+    modalidade: order.modalidade,
+    canalAquisicao: order.canalAquisicao,
+    observacao: order.observacao ?? '',
+    valorFrete: order.valorFrete ?? 0,
+    cupons: order.cupomCodigos ?? [],
+  }
+}
+
 function payloadPedidoCompleto(input: OrderCreateValues): Record<string, unknown> {
   const clienteId = Number(input.clienteId)
   if (!Number.isFinite(clienteId)) {
@@ -284,7 +339,7 @@ export async function updatePedidoCompleto(
   input: OrderCreateValues,
 ): Promise<Order> {
   const data = await putJson<unknown>(
-    `/admin/pedido/${encodeURIComponent(id)}`,
+    `/admin/pedido/completo/${encodeURIComponent(id)}`,
     payloadPedidoCompleto(input),
   )
   return mapOrderFromApi(data)

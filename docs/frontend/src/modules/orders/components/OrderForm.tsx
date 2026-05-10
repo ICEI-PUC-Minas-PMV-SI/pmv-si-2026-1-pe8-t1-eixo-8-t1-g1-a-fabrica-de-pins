@@ -31,7 +31,9 @@ import {
 } from '@/modules/orders/hooks/useOrders'
 import {
   canalAquisicaoLabel,
+  KANBAN_COLUMN_ORDER,
   modalidadeLabel,
+  orderStatusLabel,
 } from '@/modules/orders/lib/order-labels'
 import {
   estimateDescontoCupons,
@@ -647,19 +649,21 @@ export function OrderForm({
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="rascunho">Rascunho</SelectItem>
-                  <SelectItem value="confirmado">Confirmado</SelectItem>
-                  <SelectItem value="enviado">Enviado</SelectItem>
-                  <SelectItem value="cancelado">Cancelado</SelectItem>
+                  {KANBAN_COLUMN_ORDER.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {orderStatusLabel[s]}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <p className="text-sm text-muted-foreground">
-                Pedidos{' '}
-                <strong className="font-medium text-foreground">confirmados</strong>{' '}
-                ou{' '}
-                <strong className="font-medium text-foreground">enviados</strong>{' '}
-                abatem o estoque dos produtos. Rascunho e cancelado não alteram
-                estoque.
+                Após o{' '}
+                <strong className="font-medium text-foreground">
+                  pagamento confirmado
+                </strong>
+                , o fluxo segue produção e envio. Rascunho e cancelado não
+                abatem estoque da mesma forma que pedidos já pagos ou expedidos
+                (conforme regras do sistema).
               </p>
               <FormMessage />
             </FormItem>

@@ -2,7 +2,6 @@
  * Cliente HTTP — baseURL em import.meta.env.VITE_API_URL
  */
 import {
-  clearStoredToken,
   getStoredToken,
 } from '@/services/auth.storage'
 
@@ -59,11 +58,6 @@ function authHeaders(): HeadersInit {
   return t ? { Authorization: `Bearer ${t}` } : {}
 }
 
-/** Remove token local se a API indicar não autorizado (evita estado preso). */
-function onUnauthorized(status: number): void {
-  if (status === 401) clearStoredToken()
-}
-
 type JsonInit = RequestInit & {
   json?: unknown
 }
@@ -89,7 +83,6 @@ async function requestJson<T>(
   })
   const body = await parseJsonSafe(res)
   if (!res.ok) {
-    onUnauthorized(res.status)
     throw new ApiError(
       messageFromBody(body, res.statusText),
       res.status,

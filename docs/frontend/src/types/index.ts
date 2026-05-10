@@ -94,6 +94,8 @@ export type Order = {
   id: string
   clienteId: string
   clienteNome?: string
+  /** Origem do pedido (snapshot); usado em filtros de relatório por segmento. */
+  tipoCliente?: TipoCliente
   itens: OrderItem[]
   valorTotal: number
   status: OrderStatus
