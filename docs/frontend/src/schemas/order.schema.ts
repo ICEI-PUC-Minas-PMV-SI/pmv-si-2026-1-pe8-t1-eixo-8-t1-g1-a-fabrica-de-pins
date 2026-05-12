@@ -15,14 +15,7 @@ export const orderStatusEnum = z.enum([
 
 export type OrderStatus = z.infer<typeof orderStatusEnum>
 
-export const canalAquisicaoEnum = z.enum([
-  'instagram',
-  'site',
-  'marketplace',
-  'loja',
-  'indicacao',
-  'outro',
-])
+export const canalAquisicaoEnum = z.enum(['site', 'whatsapp', 'rede_social'])
 
 export type CanalAquisicao = z.infer<typeof canalAquisicaoEnum>
 
@@ -41,7 +34,7 @@ export const orderCreateSchema = z.object({
   itens: z.array(orderItemSchema).min(1, 'Adicione pelo menos um item'),
   status: orderStatusEnum.default('rascunho'),
   modalidade: modalidadePedidoEnum.default('pronta_entrega'),
-  canalAquisicao: canalAquisicaoEnum.default('instagram'),
+  canalAquisicao: canalAquisicaoEnum.default('site'),
   observacao: z.string().optional().default(''),
   valorFrete: z.coerce.number().min(0).default(0),
   cupons: z.array(z.string()).default([]),

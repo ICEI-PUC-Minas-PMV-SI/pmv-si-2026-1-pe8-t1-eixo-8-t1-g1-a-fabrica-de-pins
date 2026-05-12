@@ -76,12 +76,9 @@ function mapCanalToApi(
 ): string | undefined {
   if (!canal) return undefined
   const map = {
-    instagram: 'INSTAGRAM',
     site: 'SITE',
-    marketplace: 'MARKETPLACE',
-    loja: 'LOJA',
-    indicacao: 'INDICACAO',
-    outro: 'OUTRO',
+    whatsapp: 'WHATSAPP',
+    rede_social: 'REDE_SOCIAL',
   } as const
   return map[canal]
 }
@@ -131,7 +128,9 @@ export async function fetchRelatorioPlanejamento(
   filtros: ReportFiltersInput,
 ): Promise<RelatorioPlanejamento> {
   const q = await buildQuery(filtros)
-  return getJson<RelatorioPlanejamento>(`${BASE}/planejamento?${q}`)
+  const sp = new URLSearchParams(q)
+  sp.set('periodo', filtros.periodoPlanejamento ?? 'MES')
+  return getJson<RelatorioPlanejamento>(`${BASE}/planejamento?${sp.toString()}`)
 }
 
 export async function fetchRelatorioEstoque(

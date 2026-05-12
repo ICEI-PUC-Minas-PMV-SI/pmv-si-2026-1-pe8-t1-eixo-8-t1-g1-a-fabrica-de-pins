@@ -155,13 +155,23 @@ export function DashboardPage() {
                   <ReportRevenueTab
                     receita={receita}
                     historicoReceita={planejamento?.historicoVendas}
+                    periodoPlanejamento={filtros.periodoPlanejamento}
+                    onPeriodoPlanejamentoChange={(v) =>
+                      setFiltros((prev) => ({ ...prev, periodoPlanejamento: v }))
+                    }
                   />
                 </TabsContent>
                 <TabsContent value="production" className="mt-0">
                   <ReportProductionTab producao={producao} />
                 </TabsContent>
                 <TabsContent value="planning" className="mt-0">
-                  <ReportPlanningTab planejamento={planejamento} />
+                  <ReportPlanningTab
+                    planejamento={planejamento}
+                    periodoPlanejamento={filtros.periodoPlanejamento}
+                    onPeriodoPlanejamentoChange={(v) =>
+                      setFiltros((prev) => ({ ...prev, periodoPlanejamento: v }))
+                    }
+                  />
                 </TabsContent>
               </div>
             </Tabs>

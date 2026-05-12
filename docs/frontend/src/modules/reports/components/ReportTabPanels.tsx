@@ -48,6 +48,10 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { canalAquisicaoLabel } from '@/modules/orders/lib/order-labels'
+import {
+  periodoPlanejamentoLabel,
+  type AgrupamentoPeriodoPlanejamento,
+} from '@/schemas/report.filters.schema'
 import type {
   ProdutoEstoqueDTO,
   RelatorioEstoque,
@@ -72,16 +76,57 @@ function formatHours(h: number): string {
 function canalApiToLabel(canal: string): string {
   const u = canal.trim().toUpperCase()
   const map: Record<string, keyof typeof canalAquisicaoLabel> = {
-    INSTAGRAM: 'instagram',
     SITE: 'site',
-    MARKETPLACE: 'marketplace',
-    LOJA: 'loja',
-    INDICACAO: 'indicacao',
-    INDICAÇÃO: 'indicacao',
-    OUTRO: 'outro',
+    WHATSAPP: 'whatsapp',
+    REDE_SOCIAL: 'rede_social',
+    INSTAGRAM: 'rede_social',
+    MARKETPLACE: 'rede_social',
+    LOJA: 'site',
+    INDICACAO: 'whatsapp',
+    INDICAÇÃO: 'whatsapp',
+    OUTRO: 'site',
   }
   const k = map[u]
   return k ? canalAquisicaoLabel[k] : canal
+}
+
+function PeriodoPlanejamentoChartSelect({
+  value,
+  onChange,
+  idSuffix,
+}: {
+  value: AgrupamentoPeriodoPlanejamento
+  onChange: (v: AgrupamentoPeriodoPlanejamento) => void
+  /** Evita ids duplicados quando há dois selects na página. */
+  idSuffix: string
+}) {
+  return (
+    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
+      <Label htmlFor={`periodo-graf-${idSuffix}`} className="text-xs text-muted-foreground whitespace-nowrap">
+        Agrupamento
+      </Label>
+      <Select
+        value={value}
+        onValueChange={(v) => onChange(v as AgrupamentoPeriodoPlanejamento)}
+      >
+        <SelectTrigger id={`periodo-graf-${idSuffix}`} className="h-9 w-full min-w-[9.5rem] text-sm sm:w-[11rem]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {(
+            Object.entries(periodoPlanejamentoLabel) as [
+              AgrupamentoPeriodoPlanejamento,
+              string,
+            ][]
+          ).map(([k, lab]) => (
+            <SelectItem key={k} value={k}>
+              {lab}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  )
 }
 
 /** Status de pedido retornado pelo relatório de produção / gestão (API em UPPER_SNAKE). */
@@ -412,9 +457,13 @@ const defaultReceita: RelatorioReceita = {
 export function ReportRevenueTab({
   receita,
   historicoReceita,
+  periodoPlanejamento,
+  onPeriodoPlanejamentoChange,
 }: {
   receita?: RelatorioReceita
   historicoReceita?: RelatorioPlanejamento['historicoVendas']
+  periodoPlanejamento: AgrupamentoPeriodoPlanejamento
+  onPeriodoPlanejamentoChange: (v: AgrupamentoPeriodoPlanejamento) => void
 }) {
   const r = receita ?? defaultReceita
   const lineData = (historicoReceita ?? []).map((h, i) => {
@@ -471,13 +520,22 @@ export function ReportRevenueTab({
 
       <Card className="shadow-sm">
         <CardHeader className="border-b bg-muted/30">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <TrendingUp className="h-4 w-4 text-primary" />
-            Receita no tempo
-          </CardTitle>
-          <CardDescription>
-            Evolução da receita por período (planejamento).
-          </CardDescription>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 space-y-1.5">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <TrendingUp className="h-4 w-4 text-primary" />
+                Receita no tempo
+              </CardTitle>
+              <CardDescription>
+                Evolução da receita por período (planejamento).
+              </CardDescription>
+            </div>
+            <PeriodoPlanejamentoChartSelect
+              idSuffix="receita"
+              value={periodoPlanejamento}
+              onChange={onPeriodoPlanejamentoChange}
+            />
+          </div>
         </CardHeader>
         <CardContent className="pt-6">
           {lineData.length === 0 ? (
@@ -633,8 +691,12 @@ export function ReportProductionTab({ producao }: { producao?: RelatorioProducao
 
 export function ReportPlanningTab({
   planejamento,
+  periodoPlanejamento,
+  onPeriodoPlanejamentoChange,
 }: {
   planejamento?: RelatorioPlanejamento
+  periodoPlanejamento: AgrupamentoPeriodoPlanejamento
+  onPeriodoPlanejamentoChange: (v: AgrupamentoPeriodoPlanejamento) => void
 }) {
   const pl = planejamento ?? {
     receitaTotal: 0,
@@ -656,11 +718,18 @@ export function ReportPlanningTab({
 
   return (
     <div className="space-y-6">
-      <div className="space-y-1">
-        <h3 className="text-lg font-semibold tracking-tight">Planejamento</h3>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Canais e histórico de vendas no período.
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+        <div className="space-y-1">
+          <h3 className="text-lg font-semibold tracking-tight">Planejamento</h3>
+          <p className="max-w-2xl text-sm text-muted-foreground">
+            Canais e histórico de vendas no período.
+          </p>
+        </div>
+        <PeriodoPlanejamentoChartSelect
+          idSuffix="planejamento"
+          value={periodoPlanejamento}
+          onChange={onPeriodoPlanejamentoChange}
+        />
       </div>
 
       <StatHighlight

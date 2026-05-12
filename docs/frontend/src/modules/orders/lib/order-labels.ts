@@ -2,12 +2,9 @@ import type { CanalAquisicao, ModalidadePedido, OrderStatus } from '@/schemas/or
 import type { TipoCliente } from '@/types'
 
 export const canalAquisicaoLabel: Record<CanalAquisicao, string> = {
-  instagram: 'Instagram',
   site: 'Site',
-  marketplace: 'Marketplace',
-  loja: 'Loja',
-  indicacao: 'Indicação',
-  outro: 'Outro',
+  whatsapp: 'WhatsApp',
+  rede_social: 'Rede social',
 }
 
 export const modalidadeLabel: Record<ModalidadePedido, string> = {
