@@ -2,6 +2,13 @@ import { useQueries } from '@tanstack/react-query'
 
 import { useAuth } from '@/modules/auth/context/AuthContext'
 import type { ReportFiltersInput } from '@/schemas/report.filters.schema'
+
+function relatorioFiltrosSemPeriodoPlanejamento(
+  f: ReportFiltersInput,
+): Omit<ReportFiltersInput, 'periodoPlanejamento'> {
+  const { periodoPlanejamento: _p, ...rest } = f
+  return rest
+}
 import {
   fetchRelatorioEstoque,
   fetchRelatorioPlanejamento,
@@ -17,17 +24,17 @@ export function useRelatorioQueries(filtros: ReportFiltersInput | null) {
   const queries = useQueries({
     queries: [
       {
-        queryKey: ['relatorio-resumo', filtros],
+        queryKey: ['relatorio-resumo', relatorioFiltrosSemPeriodoPlanejamento(filtros!)],
         queryFn: () => fetchRelatorioResumo(filtros!),
         enabled,
       },
       {
-        queryKey: ['relatorio-receita', filtros],
+        queryKey: ['relatorio-receita', relatorioFiltrosSemPeriodoPlanejamento(filtros!)],
         queryFn: () => fetchRelatorioReceita(filtros!),
         enabled,
       },
       {
-        queryKey: ['relatorio-producao', filtros],
+        queryKey: ['relatorio-producao', relatorioFiltrosSemPeriodoPlanejamento(filtros!)],
         queryFn: () => fetchRelatorioProducao(filtros!),
         enabled,
       },
@@ -37,7 +44,7 @@ export function useRelatorioQueries(filtros: ReportFiltersInput | null) {
         enabled,
       },
       {
-        queryKey: ['relatorio-estoque', filtros],
+        queryKey: ['relatorio-estoque', relatorioFiltrosSemPeriodoPlanejamento(filtros!)],
         queryFn: () => fetchRelatorioEstoque(filtros!),
         enabled,
       },

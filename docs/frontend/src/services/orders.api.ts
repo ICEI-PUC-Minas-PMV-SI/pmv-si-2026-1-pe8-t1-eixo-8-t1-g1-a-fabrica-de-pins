@@ -84,24 +84,23 @@ function mapOrigemToCanal(origem: string): CanalAquisicao {
   const u = origem.trim().toUpperCase()
   const map: Record<string, CanalAquisicao> = {
     SITE: 'site',
-    INSTAGRAM: 'instagram',
-    MARKETPLACE: 'marketplace',
-    LOJA: 'loja',
-    INDICACAO: 'indicacao',
-    INDICAÇÃO: 'indicacao',
-    OUTRO: 'outro',
+    WHATSAPP: 'whatsapp',
+    REDE_SOCIAL: 'rede_social',
+    INSTAGRAM: 'rede_social',
+    MARKETPLACE: 'rede_social',
+    LOJA: 'site',
+    INDICACAO: 'whatsapp',
+    INDICAÇÃO: 'whatsapp',
+    OUTRO: 'site',
   }
   return map[u] ?? 'site'
 }
 
 export function mapCanalToOrigem(canal: CanalAquisicao): string {
   const map: Record<CanalAquisicao, string> = {
-    instagram: 'INSTAGRAM',
     site: 'SITE',
-    marketplace: 'MARKETPLACE',
-    loja: 'LOJA',
-    indicacao: 'INDICACAO',
-    outro: 'OUTRO',
+    whatsapp: 'WHATSAPP',
+    rede_social: 'REDE_SOCIAL',
   }
   return map[canal]
 }

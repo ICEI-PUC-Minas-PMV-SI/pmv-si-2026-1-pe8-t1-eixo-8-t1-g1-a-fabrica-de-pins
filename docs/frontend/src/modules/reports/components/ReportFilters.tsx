@@ -39,6 +39,7 @@ export function buildDefaultReportFilters(): ReportFiltersInput {
     canalAquisicao: undefined,
     categoriaProduto: undefined,
     tipoCliente: undefined,
+    periodoPlanejamento: 'MES',
   }
 }
 
