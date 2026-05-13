@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { canalAquisicaoLabel, tipoClienteLabel } from '@/modules/orders/lib/order-labels'
-import { useProductsQuery } from '@/modules/products/hooks/useProducts'
+import { useAllCategoriesQuery } from '@/modules/products/hooks/useCategories'
 import type { ReportFiltersInput } from '@/schemas/report.filters.schema'
 import { formatYmd } from '@/utils/format'
 import { cn } from '@/utils/cn'
@@ -37,7 +37,7 @@ export function buildDefaultReportFilters(): ReportFiltersInput {
     dataInicio: formatYmd(inicio),
     dataFim: formatYmd(fim),
     canalAquisicao: undefined,
-    categoriaProduto: undefined,
+    categoriaId: undefined,
     tipoCliente: undefined,
     periodoPlanejamento: 'MES',
   }
@@ -49,12 +49,24 @@ export function ReportFilters({
   className,
   embedded,
 }: ReportFiltersProps) {
-  const { data: products } = useProductsQuery()
+  const { data: categoriasData, isPending: categoriasPending } =
+    useAllCategoriesQuery()
 
   const categorias = useMemo(() => {
-    if (!products) return []
-    return [...new Set(products.map((p) => p.categoria))].sort()
-  }, [products])
+    if (!categoriasData) return []
+    const ordered = [...categoriasData].sort((a, b) =>
+      a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }),
+    )
+    const seen = new Set<string>()
+    const out: typeof ordered = []
+    for (const c of ordered) {
+      const key = c.nome.trim().toLowerCase()
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+      out.push(c)
+    }
+    return out
+  }, [categoriasData])
 
   function setRangeDays(days: number) {
     const fim = new Date()
@@ -173,22 +185,30 @@ export function ReportFilters({
         <div className="grid gap-1">
           <Label className="text-xs">Categoria (produto)</Label>
           <Select
-            value={value.categoriaProduto ?? '__all'}
-            onValueChange={(v) =>
+            value={value.categoriaId != null ? String(value.categoriaId) : '__all'}
+            onValueChange={(v) => {
+              const next = v === '__all' ? undefined : Number(v)
               onChange({
                 ...value,
-                categoriaProduto: v === '__all' ? undefined : v,
+                categoriaId: Number.isFinite(next) ? next : undefined,
               })
-            }
+            }}
+            disabled={categoriasPending && categorias.length === 0}
           >
             <SelectTrigger className="h-9 text-sm">
-              <SelectValue placeholder="Todas" />
+              <SelectValue
+                placeholder={
+                  categoriasPending && categorias.length === 0
+                    ? 'Carregando…'
+                    : 'Todas'
+                }
+              />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__all">Todas</SelectItem>
               {categorias.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
+                <SelectItem key={c.id} value={String(c.id)}>
+                  {c.nome}
                 </SelectItem>
               ))}
             </SelectContent>

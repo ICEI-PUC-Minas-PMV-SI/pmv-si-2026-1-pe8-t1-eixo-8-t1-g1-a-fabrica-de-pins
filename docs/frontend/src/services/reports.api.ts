@@ -1,5 +1,4 @@
 import type { ReportFiltersInput } from '@/schemas/report.filters.schema'
-import { listCategories } from '@/services/categories.api'
 import { getJson } from '@/services/http'
 
 const BASE = '/gestao/relatorios'
@@ -83,52 +82,41 @@ function mapCanalToApi(
   return map[canal]
 }
 
-async function resolveCategoryIdByName(name?: string): Promise<number | undefined> {
-  if (!name?.trim()) return undefined
-  const target = name.trim().toLowerCase()
-  const categories = await listCategories()
-  const match = categories.find((c) => c.nome.trim().toLowerCase() === target)
-  return match ? Number(match.id) : undefined
-}
-
-async function buildQuery(filtros: ReportFiltersInput): Promise<string> {
+function buildQuery(filtros: ReportFiltersInput): string {
   const p = new URLSearchParams()
   p.set('dataInicio', toIsoStart(filtros.dataInicio))
   p.set('dataFim', toIsoEnd(filtros.dataFim))
   const canal = mapCanalToApi(filtros.canalAquisicao)
   if (canal) p.set('canal', canal)
   if (filtros.tipoCliente) p.set('tipoCliente', filtros.tipoCliente)
-  const catId = await resolveCategoryIdByName(filtros.categoriaProduto)
-  if (catId != null) p.set('categoriaId', String(catId))
+  if (filtros.categoriaId != null) {
+    p.set('categoriaId', String(filtros.categoriaId))
+  }
   return p.toString()
 }
 
 export async function fetchRelatorioResumo(
   filtros: ReportFiltersInput,
 ): Promise<RelatorioResumo> {
-  const q = await buildQuery(filtros)
-  return getJson<RelatorioResumo>(`${BASE}/resumo?${q}`)
+  return getJson<RelatorioResumo>(`${BASE}/resumo?${buildQuery(filtros)}`)
 }
 
 export async function fetchRelatorioReceita(
   filtros: ReportFiltersInput,
 ): Promise<RelatorioReceita> {
-  const q = await buildQuery(filtros)
-  return getJson<RelatorioReceita>(`${BASE}/receita?${q}`)
+  return getJson<RelatorioReceita>(`${BASE}/receita?${buildQuery(filtros)}`)
 }
 
 export async function fetchRelatorioProducao(
   filtros: ReportFiltersInput,
 ): Promise<RelatorioProducao> {
-  const q = await buildQuery(filtros)
-  return getJson<RelatorioProducao>(`${BASE}/producao?${q}`)
+  return getJson<RelatorioProducao>(`${BASE}/producao?${buildQuery(filtros)}`)
 }
 
 export async function fetchRelatorioPlanejamento(
   filtros: ReportFiltersInput,
 ): Promise<RelatorioPlanejamento> {
-  const q = await buildQuery(filtros)
-  const sp = new URLSearchParams(q)
+  const sp = new URLSearchParams(buildQuery(filtros))
   sp.set('periodo', filtros.periodoPlanejamento ?? 'MES')
   return getJson<RelatorioPlanejamento>(`${BASE}/planejamento?${sp.toString()}`)
 }
@@ -136,6 +124,5 @@ export async function fetchRelatorioPlanejamento(
 export async function fetchRelatorioEstoque(
   filtros: ReportFiltersInput,
 ): Promise<RelatorioEstoque> {
-  const q = await buildQuery(filtros)
-  return getJson<RelatorioEstoque>(`${BASE}/estoque?${q}`)
+  return getJson<RelatorioEstoque>(`${BASE}/estoque?${buildQuery(filtros)}`)
 }

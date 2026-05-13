@@ -104,20 +104,22 @@ async function getProductsPageRaw(page: number, pageSize: number, sort: string) 
   return parseSpringPagePayload(data)
 }
 
-/**
- * Lista completa (selects, relatórios, estoque) — percorre todas as páginas da API.
- */
 export async function listProducts(): Promise<Product[]> {
+  const MAX_PAGES = 100
   const all: Product[] = []
   let page = 0
-  for (;;) {
+  let knownTotalPages: number | null = null
+  while (page < MAX_PAGES) {
     const raw = await getProductsPageRaw(page, FETCH_ALL_CHUNK_SIZE, SORT_NEWEST_FIRST)
     for (const item of raw.content) {
       all.push(mapProduct(item))
     }
+    if (knownTotalPages === null && raw.totalPages > 0) {
+      knownTotalPages = raw.totalPages
+    }
     if (raw.last || raw.content.length === 0) break
+    if (knownTotalPages !== null && page + 1 >= knownTotalPages) break
     page += 1
-    if (page > 10_000) break
   }
   return all
 }

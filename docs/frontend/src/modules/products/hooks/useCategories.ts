@@ -9,6 +9,7 @@ import type { CategoryFormValues } from '@/schemas/category.schema'
 import {
   createCategory,
   deleteCategory,
+  listCategories,
   listCategoriesPage,
   updateCategory,
 } from '@/services/categories.api'
@@ -18,6 +19,19 @@ export function useCategoriesPageQuery(page: number) {
     queryKey: ['categories', 'page', page],
     queryFn: () => listCategoriesPage(page),
     placeholderData: keepPreviousData,
+  })
+}
+
+/**
+ * Lista completa de categorias para selects/relatórios. Cache compartilhado
+ * (5 min) para evitar várias chamadas paginadas em paralelo quando múltiplos
+ * componentes/queries dependem do nome→id da categoria.
+ */
+export function useAllCategoriesQuery() {
+  return useQuery({
+    queryKey: ['categories', 'all'],
+    queryFn: listCategories,
+    staleTime: 5 * 60_000,
   })
 }
 

@@ -28,12 +28,11 @@ export const periodoPlanejamentoLabel: Record<
   ANO: 'Ano',
 }
 
-/** Filtros dos relatórios (API `/gestao/relatorios/*`). */
 export const reportFiltersSchema = z.object({
   dataInicio: z.string().min(1),
   dataFim: z.string().min(1),
   canalAquisicao: canalAquisicaoEnum.optional(),
-  categoriaProduto: z.string().optional(),
+  categoriaId: z.number().int().positive().optional(),
   tipoCliente: tipoClienteRelatorioEnum.optional(),
   periodoPlanejamento: agrupamentoPeriodoPlanejamentoEnum.default('MES'),
 })
