@@ -52,26 +52,35 @@ async function getCategoriesPageRaw(
   return parseSpringPagePayload(data)
 }
 
-/**
- * Lista completa — percorre todas as páginas da API.
- */
 export async function listCategories(): Promise<Category[]> {
-  const all: Category[] = []
+  const MAX_PAGES = 50
+  const byId = new Map<string, Category>()
   let page = 0
-  for (;;) {
+  let knownTotalPages: number | null = null
+  let lastPageSignature: string | null = null
+  while (page < MAX_PAGES) {
     const raw = await getCategoriesPageRaw(
       page,
       FETCH_ALL_CHUNK_SIZE,
       SORT_NEWEST_FIRST,
     )
-    for (const item of raw.content) {
-      all.push(mapCategory(item))
+    const pageCategories = raw.content.map(mapCategory)
+    for (const c of pageCategories) {
+      if (c.id && !byId.has(c.id)) {
+        byId.set(c.id, c)
+      }
+    }
+    if (knownTotalPages === null && raw.totalPages > 0) {
+      knownTotalPages = raw.totalPages
     }
     if (raw.last || raw.content.length === 0) break
+    if (knownTotalPages !== null && page + 1 >= knownTotalPages) break
+    const signature = pageCategories.map((c) => c.id).join('|')
+    if (signature !== '' && signature === lastPageSignature) break
+    lastPageSignature = signature
     page += 1
-    if (page > 10_000) break
   }
-  return all
+  return [...byId.values()]
 }
 
 export async function listCategoriesPage(

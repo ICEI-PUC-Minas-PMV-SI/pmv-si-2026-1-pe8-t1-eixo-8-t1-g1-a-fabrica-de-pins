@@ -718,18 +718,11 @@ export function ReportPlanningTab({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
-        <div className="space-y-1">
-          <h3 className="text-lg font-semibold tracking-tight">Planejamento</h3>
-          <p className="max-w-2xl text-sm text-muted-foreground">
-            Canais e histórico de vendas no período.
-          </p>
-        </div>
-        <PeriodoPlanejamentoChartSelect
-          idSuffix="planejamento"
-          value={periodoPlanejamento}
-          onChange={onPeriodoPlanejamentoChange}
-        />
+      <div className="space-y-1">
+        <h3 className="text-lg font-semibold tracking-tight">Planejamento</h3>
+        <p className="max-w-2xl text-sm text-muted-foreground">
+          Canais e histórico de vendas no período.
+        </p>
       </div>
 
       <StatHighlight
@@ -790,11 +783,20 @@ export function ReportPlanningTab({
 
         <Card className="shadow-sm">
           <CardHeader className="border-b bg-muted/30">
-            <CardTitle className="flex items-center gap-2">
-              <CalendarDays className="h-5 w-5 text-primary" />
-              Histórico de vendas
-            </CardTitle>
-            <CardDescription>Receita por período</CardDescription>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0 space-y-1.5">
+                <CardTitle className="flex items-center gap-2">
+                  <CalendarDays className="h-5 w-5 text-primary" />
+                  Histórico de vendas
+                </CardTitle>
+                <CardDescription>Receita por período</CardDescription>
+              </div>
+              <PeriodoPlanejamentoChartSelect
+                idSuffix="planejamento"
+                value={periodoPlanejamento}
+                onChange={onPeriodoPlanejamentoChange}
+              />
+            </div>
           </CardHeader>
           <CardContent className="h-[320px] pt-6">
             {histBar.length === 0 ? (
