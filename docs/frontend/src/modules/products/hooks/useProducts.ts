@@ -5,7 +5,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 
-import type { ProductFormValues } from '@/schemas/product.schema'
+import type { ProductFormValues, TipoEstoqueProduto } from '@/schemas/product.schema'
 import {
   createProduct,
   getProduct,
@@ -23,10 +23,13 @@ export function useProductsQuery() {
 }
 
 /** Listagem paginada na tela de produtos. */
-export function useProductsPageQuery(page: number) {
+export function useProductsPageQuery(
+  page: number,
+  tipoEstoque?: TipoEstoqueProduto,
+) {
   return useQuery({
-    queryKey: ['products', 'page', page],
-    queryFn: () => listProductsPage(page),
+    queryKey: ['products', 'page', page, tipoEstoque ?? 'all'],
+    queryFn: () => listProductsPage(page, undefined, tipoEstoque),
     placeholderData: keepPreviousData,
   })
 }

@@ -1,4 +1,7 @@
-import type { ProductFormValues } from '@/schemas/product.schema'
+import type {
+  ProductFormValues,
+  TipoEstoqueProduto,
+} from '@/schemas/product.schema'
 import type { Product } from '@/types'
 import { getJson, postJson, putJson } from '@/services/http'
 import {
@@ -28,6 +31,37 @@ function num(v: unknown, fallback = 0): number {
   return fallback
 }
 
+const TIPO_ESTOQUE_API = ['ESTOQUE', 'SOB_DEMANDA', 'PRE_VENDA'] as const
+
+/** Normaliza enum/string/número (ordinal) vindos do Spring/Jackson. */
+function mapTipoEstoqueFromApi(raw: unknown): string {
+  if (raw === null || raw === undefined) return 'ESTOQUE'
+  if (typeof raw === 'number' && Number.isInteger(raw) && raw >= 0) {
+    return TIPO_ESTOQUE_API[raw] ?? 'ESTOQUE'
+  }
+  if (typeof raw === 'object') {
+    const o = raw as Record<string, unknown>
+    const inner = o.name ?? o.value ?? o.tipoEstoque
+    if (inner !== undefined && inner !== raw) {
+      return mapTipoEstoqueFromApi(inner)
+    }
+  }
+  const s = String(raw).trim()
+  if (!s) return 'ESTOQUE'
+  const token = s
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/-/g, '_')
+    .toUpperCase()
+  if (token === 'SOB_DEMANDA' || token === 'SOBDEMANDA') return 'SOB_DEMANDA'
+  if (token === 'PRE_VENDA' || token === 'PREVENDA') return 'PRE_VENDA'
+  if (token === 'ESTOQUE') return 'ESTOQUE'
+  if (TIPO_ESTOQUE_API.includes(token as (typeof TIPO_ESTOQUE_API)[number])) {
+    return token
+  }
+  return 'ESTOQUE'
+}
+
 function mapProduct(raw: unknown): Product {
   const o = asRecord(raw)
   if (!o) throw new Error('Resposta de produto inválida')
@@ -45,7 +79,7 @@ function mapProduct(raw: unknown): Product {
     id: idStr(o.id),
     nome: String(o.nome ?? ''),
     descricao: String(o.descricao ?? ''),
-    tipoEstoque: String(o.tipoEstoque ?? 'ESTOQUE'),
+    tipoEstoque: mapTipoEstoqueFromApi(o.tipoEstoque),
     quantidadeEstoque: qtd,
     estoqueMinimo: Math.floor(num(o.estoqueMinimo)),
     precoVarejo,
@@ -94,12 +128,20 @@ function payloadFromForm(v: ProductFormValues): Record<string, unknown> {
   }
 }
 
-async function getProductsPageRaw(page: number, pageSize: number, sort: string) {
+async function getProductsPageRaw(
+  page: number,
+  pageSize: number,
+  sort: string,
+  tipoEstoque?: TipoEstoqueProduto,
+) {
   const params = new URLSearchParams({
     page: String(page),
     size: String(pageSize),
     sort,
   })
+  if (tipoEstoque) {
+    params.set('tipoEstoque', tipoEstoque)
+  }
   const data = await getJson<unknown>(`/produtos?${params.toString()}`)
   return parseSpringPagePayload(data)
 }
@@ -110,7 +152,11 @@ export async function listProducts(): Promise<Product[]> {
   let page = 0
   let knownTotalPages: number | null = null
   while (page < MAX_PAGES) {
-    const raw = await getProductsPageRaw(page, FETCH_ALL_CHUNK_SIZE, SORT_NEWEST_FIRST)
+    const raw = await getProductsPageRaw(
+      page,
+      FETCH_ALL_CHUNK_SIZE,
+      SORT_NEWEST_FIRST,
+    )
     for (const item of raw.content) {
       all.push(mapProduct(item))
     }
@@ -128,8 +174,14 @@ export async function listProducts(): Promise<Product[]> {
 export async function listProductsPage(
   page: number,
   pageSize: number = PRODUCTS_PAGE_SIZE,
+  tipoEstoque?: TipoEstoqueProduto,
 ): Promise<ProductsPageMeta> {
-  const raw = await getProductsPageRaw(page, pageSize, SORT_NEWEST_FIRST)
+  const raw = await getProductsPageRaw(
+    page,
+    pageSize,
+    SORT_NEWEST_FIRST,
+    tipoEstoque,
+  )
   return {
     content: raw.content.map(mapProduct),
     page: raw.number,

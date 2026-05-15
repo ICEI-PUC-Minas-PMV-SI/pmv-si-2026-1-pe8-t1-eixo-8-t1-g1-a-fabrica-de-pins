@@ -6,6 +6,7 @@ import {
 } from '@tanstack/react-query'
 
 import type { CustomerFormValues } from '@/schemas/customer.schema'
+import type { TipoCliente } from '@/types'
 import {
   createCustomer,
   getCustomer,
@@ -23,10 +24,13 @@ export function useCustomersQuery() {
 }
 
 /** Listagem paginada na tela de clientes (20 por página, mais recentes primeiro). */
-export function useCustomersPageQuery(page: number) {
+export function useCustomersPageQuery(
+  page: number,
+  tipoCliente?: TipoCliente,
+) {
   return useQuery({
-    queryKey: ['customers', 'page', page],
-    queryFn: () => listCustomersPage(page),
+    queryKey: ['customers', 'page', page, tipoCliente ?? 'all'],
+    queryFn: () => listCustomersPage(page, undefined, tipoCliente),
     placeholderData: keepPreviousData,
   })
 }

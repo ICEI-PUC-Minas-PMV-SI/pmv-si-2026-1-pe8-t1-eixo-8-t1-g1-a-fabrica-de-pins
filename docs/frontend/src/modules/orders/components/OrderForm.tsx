@@ -32,7 +32,6 @@ import {
 import {
   canalAquisicaoLabel,
   KANBAN_COLUMN_ORDER,
-  modalidadeLabel,
   orderStatusLabel,
 } from '@/modules/orders/lib/order-labels'
 import {
@@ -69,7 +68,6 @@ function orderToFormValues(o: Order): OrderCreateValues {
   return {
     clienteId: o.clienteId,
     status: o.status,
-    modalidade: o.modalidade,
     canalAquisicao: o.canalAquisicao,
     observacao: o.observacao ?? '',
     valorFrete: o.valorFrete ?? 0,
@@ -110,7 +108,6 @@ export function OrderForm({
     defaultValues: {
       clienteId: '',
       status: 'rascunho',
-      modalidade: 'pronta_entrega',
       canalAquisicao: 'site',
       observacao: '',
       valorFrete: 0,
@@ -237,7 +234,6 @@ export function OrderForm({
         form.reset({
           clienteId: '',
           status: 'rascunho',
-          modalidade: 'pronta_entrega',
           canalAquisicao: 'site',
           observacao: '',
           valorFrete: 0,
@@ -579,31 +575,6 @@ export function OrderForm({
           )}
         </div>
 
-        <FormField
-          control={form.control}
-          name="modalidade"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Modalidade</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="pronta_entrega">
-                    {modalidadeLabel.pronta_entrega}
-                  </SelectItem>
-                  <SelectItem value="pre_venda">
-                    {modalidadeLabel.pre_venda}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
         <FormField
           control={form.control}
           name="canalAquisicao"
