@@ -19,12 +19,16 @@ async function getCustomersPageRaw(
   page: number,
   pageSize: number,
   sort: string,
+  tipoCliente?: TipoCliente,
 ) {
   const params = new URLSearchParams({
     page: String(page),
     size: String(pageSize),
     sort,
   })
+  if (tipoCliente) {
+    params.set('tipoCliente', tipoCliente)
+  }
   const data = await getJson<unknown>(
     `/clientes?${params.toString()}`,
   )
@@ -196,8 +200,14 @@ export async function listCustomers(): Promise<Customer[]> {
 export async function listCustomersPage(
   page: number,
   pageSize: number = CUSTOMERS_PAGE_SIZE,
+  tipoCliente?: TipoCliente,
 ): Promise<CustomersPageMeta> {
-  const raw = await getCustomersPageRaw(page, pageSize, SORT_NEWEST_FIRST)
+  const raw = await getCustomersPageRaw(
+    page,
+    pageSize,
+    SORT_NEWEST_FIRST,
+    tipoCliente,
+  )
   return {
     content: raw.content.map(mapCustomer),
     page: raw.number,

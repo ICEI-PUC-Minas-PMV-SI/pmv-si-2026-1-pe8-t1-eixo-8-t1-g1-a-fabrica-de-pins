@@ -1,9 +1,23 @@
 import { z } from 'zod'
 
+export const tipoEstoqueProdutoEnum = z.enum([
+  'ESTOQUE',
+  'SOB_DEMANDA',
+  'PRE_VENDA',
+])
+
+export type TipoEstoqueProduto = z.infer<typeof tipoEstoqueProdutoEnum>
+
+export const tipoEstoqueLabel: Record<TipoEstoqueProduto, string> = {
+  ESTOQUE: 'Estoque',
+  SOB_DEMANDA: 'Sob demanda',
+  PRE_VENDA: 'Pré-venda',
+}
+
 export const productSchema = z.object({
   nome: z.string().min(2, 'Informe pelo menos 2 caracteres'),
   descricao: z.string().min(2, 'Informe a descrição'),
-  tipoEstoque: z.string().min(1).default('ESTOQUE'),
+  tipoEstoque: tipoEstoqueProdutoEnum,
   quantidadeEstoque: z.coerce.number().int().min(0, 'Estoque não pode ser negativo'),
   estoqueMinimo: z.coerce
     .number()
@@ -19,7 +33,7 @@ export const productSchema = z.object({
   altura: z.coerce.number().int().min(0),
   largura: z.coerce.number().int().min(0),
   comprimento: z.coerce.number().int().min(0),
-  ativo: z.boolean().default(true),
+  ativo: z.boolean(),
   categoriaId: z.coerce
     .number()
     .refine((n) => Number.isInteger(n) && n > 0, 'Selecione uma categoria'),

@@ -290,7 +290,6 @@ export function buildPedidoCompletoInputFromOrder(
       precoUnitario: i.precoUnitario,
     })),
     status,
-    modalidade: order.modalidade,
     canalAquisicao: order.canalAquisicao,
     observacao: order.observacao ?? '',
     valorFrete: order.valorFrete ?? 0,

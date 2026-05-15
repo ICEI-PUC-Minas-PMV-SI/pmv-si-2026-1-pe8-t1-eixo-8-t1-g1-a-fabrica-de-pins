@@ -17,12 +17,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { ErrorState } from '@/components/feedback/ErrorState'
 import { LoadingState } from '@/components/feedback/LoadingState'
 import { CustomerForm } from '@/modules/customers/components/CustomerForm'
 import { CustomerTable } from '@/modules/customers/components/CustomerTable'
 import { useCustomersPageQuery } from '@/modules/customers/hooks/useCustomers'
-import type { Customer } from '@/types'
+import { tipoClienteLabel } from '@/modules/orders/lib/order-labels'
+import type { Customer, TipoCliente } from '@/types'
 
 export function CustomersPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -30,7 +39,17 @@ export function CustomersPage() {
     null,
   )
   const [page, setPage] = useState(0)
-  const { data, isPending, isError, error, refetch } = useCustomersPageQuery(page)
+  const [tipoClienteFiltro, setTipoClienteFiltro] = useState<
+    'all' | TipoCliente
+  >('all')
+  const { data, isPending, isError, error, refetch } = useCustomersPageQuery(
+    page,
+    tipoClienteFiltro === 'all' ? undefined : tipoClienteFiltro,
+  )
+
+  useEffect(() => {
+    setPage(0)
+  }, [tipoClienteFiltro])
 
   useEffect(() => {
     if (!data || data.totalPages === 0) return
@@ -74,6 +93,26 @@ export function CustomersPage() {
           </Button>
         </CardHeader>
         <CardContent>
+          <div className="mb-4 flex max-w-xs flex-col gap-2">
+            <Label htmlFor="filtro-tipo-cliente">Tipo de cliente</Label>
+            <Select
+              value={tipoClienteFiltro}
+              onValueChange={(v) =>
+                setTipoClienteFiltro(v as 'all' | TipoCliente)
+              }
+            >
+              <SelectTrigger id="filtro-tipo-cliente">
+                <SelectValue placeholder="Todos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="VAREJO">{tipoClienteLabel.VAREJO}</SelectItem>
+                <SelectItem value="REVENDA">
+                  {tipoClienteLabel.REVENDA}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           {isPending ? <LoadingState rows={5} /> : null}
           {isError ? (
             <ErrorState

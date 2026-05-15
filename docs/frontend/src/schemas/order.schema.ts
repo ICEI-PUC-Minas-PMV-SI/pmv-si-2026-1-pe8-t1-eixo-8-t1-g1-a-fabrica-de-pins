@@ -33,7 +33,6 @@ export const orderCreateSchema = z.object({
   clienteId: z.string().min(1, 'Selecione o cliente'),
   itens: z.array(orderItemSchema).min(1, 'Adicione pelo menos um item'),
   status: orderStatusEnum.default('rascunho'),
-  modalidade: modalidadePedidoEnum.default('pronta_entrega'),
   canalAquisicao: canalAquisicaoEnum.default('site'),
   observacao: z.string().optional().default(''),
   valorFrete: z.coerce.number().min(0).default(0),

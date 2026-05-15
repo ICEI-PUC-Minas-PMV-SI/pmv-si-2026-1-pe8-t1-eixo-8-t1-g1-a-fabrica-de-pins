@@ -1,8 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
 import { useForm, type FieldErrors } from 'react-hook-form'
-import { z } from 'zod'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -31,13 +30,16 @@ import {
 } from '@/modules/products/hooks/useProducts'
 import {
   productSchema,
+  tipoEstoqueLabel,
   type ProductFormValues,
 } from '@/schemas/product.schema'
 import { listCategoriesPage } from '@/services/categories.api'
 import type { Product } from '@/types'
 import { toDateInputValue } from '@/utils/format'
 
-function collectErrorMessages(errors: FieldErrors<ProductFormValues>): string[] {
+function collectErrorMessages(
+  errors: FieldErrors<ProductFormValues>,
+): string[] {
   const out: string[] = []
   function walk(e: unknown): void {
     if (!e || typeof e !== 'object') return
@@ -54,7 +56,26 @@ function collectErrorMessages(errors: FieldErrors<ProductFormValues>): string[] 
   return [...new Set(out)]
 }
 
-type ProductFormInput = z.input<typeof productSchema>
+const TIPOS_ESTOQUE: ProductFormValues['tipoEstoque'][] = [
+  'ESTOQUE',
+  'SOB_DEMANDA',
+  'PRE_VENDA',
+]
+
+function normalizeTipoEstoque(raw: string): ProductFormValues['tipoEstoque'] {
+  const cleaned = raw.trim()
+  const t = TIPOS_ESTOQUE.find((x) => x === cleaned)
+  if (t) return t
+  const token = cleaned
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/-/g, '_')
+    .toUpperCase()
+  if (token === 'SOB_DEMANDA' || token === 'SOBDEMANDA') return 'SOB_DEMANDA'
+  if (token === 'PRE_VENDA' || token === 'PREVENDA') return 'PRE_VENDA'
+  if (token === 'ESTOQUE') return 'ESTOQUE'
+  return 'ESTOQUE'
+}
 
 function emptyProductValues(): ProductFormValues {
   return {
@@ -82,7 +103,7 @@ function productToFormValues(p: Product): ProductFormValues {
   return {
     nome: p.nome,
     descricao: p.descricao,
-    tipoEstoque: p.tipoEstoque,
+    tipoEstoque: normalizeTipoEstoque(p.tipoEstoque),
     quantidadeEstoque: p.quantidadeEstoque,
     estoqueMinimo: p.estoqueMinimo,
     precoVarejo: p.precoVarejo,
@@ -140,14 +161,14 @@ export function ProductForm({
 
   const [submitErrorMessages, setSubmitErrorMessages] = useState<string[]>([])
 
-  const form = useForm<ProductFormInput, unknown, ProductFormValues>({
+  const form = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
     defaultValues: emptyProductValues(),
     mode: 'onSubmit',
     shouldFocusError: true,
   })
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setSubmitErrorMessages([])
     if (!editingKey) {
       form.reset(emptyProductValues())
@@ -329,15 +350,31 @@ export function ProductForm({
         <FormField
           control={form.control}
           name="tipoEstoque"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Tipo de estoque</FormLabel>
-              <FormControl>
-                <Input placeholder="ESTOQUE" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
+          render={({ field }) => {
+            const stockValue = normalizeTipoEstoque(String(field.value ?? ''))
+            return (
+              <FormItem>
+                <FormLabel>Tipo de estoque</FormLabel>
+                <FormControl>
+                  <select
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                    value={stockValue}
+                    onChange={(e) => {
+                      const next = normalizeTipoEstoque(e.target.value)
+                      field.onChange(next)
+                    }}
+                  >
+                    {TIPOS_ESTOQUE.map((k) => (
+                      <option key={k} value={k}>
+                        {tipoEstoqueLabel[k]}
+                      </option>
+                    ))}
+                  </select>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )
+          }}
         />
         <FormField
           control={form.control}
