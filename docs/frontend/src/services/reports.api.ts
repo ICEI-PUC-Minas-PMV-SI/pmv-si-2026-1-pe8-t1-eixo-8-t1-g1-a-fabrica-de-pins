@@ -63,11 +63,11 @@ export type RelatorioEstoque = {
 }
 
 function toIsoStart(s: string): string {
-  return new Date(`${s}T00:00:00.000Z`).toISOString()
+  return `${s}T00:00:00Z`
 }
 
 function toIsoEnd(s: string): string {
-  return new Date(`${s}T23:59:59.999Z`).toISOString()
+  return `${s}T23:59:59Z`
 }
 
 function mapCanalToApi(
