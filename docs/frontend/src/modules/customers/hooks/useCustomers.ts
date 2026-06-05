@@ -5,6 +5,8 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 
+import { relatorioInvalidation } from '@/modules/reports/lib/report-query-keys'
+
 import type { CustomerFormValues } from '@/schemas/customer.schema'
 import type { TipoCliente } from '@/types'
 import {
@@ -52,7 +54,7 @@ export function useCreateCustomerMutation() {
     mutationFn: (input: CustomerFormValues) => createCustomer(input),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['customers'] })
-      void qc.invalidateQueries({ queryKey: ['report-snapshot'] })
+      relatorioInvalidation.onCustomerChange(qc)
     },
   })
 }
@@ -71,7 +73,7 @@ export function useUpdateCustomerMutation() {
       void qc.invalidateQueries({ queryKey: ['customers'] })
       void qc.invalidateQueries({ queryKey: ['customers', 'detail', id] })
       void qc.invalidateQueries({ queryKey: ['orders'] })
-      void qc.invalidateQueries({ queryKey: ['report-snapshot'] })
+      relatorioInvalidation.onCustomerChange(qc)
     },
   })
 }

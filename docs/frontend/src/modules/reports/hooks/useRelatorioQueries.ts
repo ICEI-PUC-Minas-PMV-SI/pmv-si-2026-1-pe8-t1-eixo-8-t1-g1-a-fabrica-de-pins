@@ -1,14 +1,15 @@
-import { useQueries } from '@tanstack/react-query'
+import { keepPreviousData, useQueries } from '@tanstack/react-query'
+import { useMemo } from 'react'
 
 import { useAuth } from '@/modules/auth/context/AuthContext'
+import {
+  RELATORIO_GC_TIME,
+  RELATORIO_STALE_TIME,
+  relatorioQueriesForTab,
+  relatorioQueryKeys,
+  type ReportTab,
+} from '@/modules/reports/lib/report-query-keys'
 import type { ReportFiltersInput } from '@/schemas/report.filters.schema'
-
-function relatorioFiltrosSemPeriodoPlanejamento(
-  f: ReportFiltersInput,
-): Omit<ReportFiltersInput, 'periodoPlanejamento'> {
-  const { periodoPlanejamento: _p, ...rest } = f
-  return rest
-}
 import {
   fetchRelatorioEstoque,
   fetchRelatorioPlanejamento,
@@ -17,41 +18,85 @@ import {
   fetchRelatorioResumo,
 } from '@/services/reports.api'
 
-export function useRelatorioQueries(filtros: ReportFiltersInput | null) {
+const relatorioQueryDefaults = {
+  staleTime: RELATORIO_STALE_TIME,
+  gcTime: RELATORIO_GC_TIME,
+  placeholderData: keepPreviousData,
+}
+
+export function useRelatorioQueries(
+  filtros: ReportFiltersInput | null,
+  tab: ReportTab,
+) {
   const { isAuthenticated } = useAuth()
   const enabled = filtros !== null && isAuthenticated
+  const f = filtros!
+
+  const needResumo = enabled && tab === 'overview'
+  const needEstoque = enabled && tab === 'stock'
+  const needReceita = enabled && tab === 'revenue'
+  const needProducao = enabled && tab === 'production'
+  const needPlanejamento = enabled && (tab === 'revenue' || tab === 'planning')
 
   const queries = useQueries({
     queries: [
       {
-        queryKey: ['relatorio-resumo', relatorioFiltrosSemPeriodoPlanejamento(filtros!)],
-        queryFn: () => fetchRelatorioResumo(filtros!),
-        enabled,
+        queryKey: enabled
+          ? relatorioQueryKeys.resumo(f)
+          : (['relatorio-resumo', 'idle'] as const),
+        queryFn: () => fetchRelatorioResumo(f),
+        enabled: needResumo,
+        ...relatorioQueryDefaults,
       },
       {
-        queryKey: ['relatorio-receita', relatorioFiltrosSemPeriodoPlanejamento(filtros!)],
-        queryFn: () => fetchRelatorioReceita(filtros!),
-        enabled,
+        queryKey: enabled
+          ? relatorioQueryKeys.receita(f)
+          : (['relatorio-receita', 'idle'] as const),
+        queryFn: () => fetchRelatorioReceita(f),
+        enabled: needReceita,
+        ...relatorioQueryDefaults,
       },
       {
-        queryKey: ['relatorio-producao', relatorioFiltrosSemPeriodoPlanejamento(filtros!)],
-        queryFn: () => fetchRelatorioProducao(filtros!),
-        enabled,
+        queryKey: enabled
+          ? relatorioQueryKeys.producao(f)
+          : (['relatorio-producao', 'idle'] as const),
+        queryFn: () => fetchRelatorioProducao(f),
+        enabled: needProducao,
+        ...relatorioQueryDefaults,
       },
       {
-        queryKey: ['relatorio-planejamento', filtros],
-        queryFn: () => fetchRelatorioPlanejamento(filtros!),
-        enabled,
+        queryKey: enabled
+          ? relatorioQueryKeys.planejamento(f)
+          : (['relatorio-planejamento', 'idle'] as const),
+        queryFn: () => fetchRelatorioPlanejamento(f),
+        enabled: needPlanejamento,
+        ...relatorioQueryDefaults,
       },
       {
-        queryKey: ['relatorio-estoque', relatorioFiltrosSemPeriodoPlanejamento(filtros!)],
-        queryFn: () => fetchRelatorioEstoque(filtros!),
-        enabled,
+        queryKey: enabled
+          ? relatorioQueryKeys.estoque(f)
+          : (['relatorio-estoque', 'idle'] as const),
+        queryFn: () => fetchRelatorioEstoque(f),
+        enabled: needEstoque,
+        ...relatorioQueryDefaults,
       },
     ],
   })
 
   const [resumo, receita, producao, planejamento, estoque] = queries
+
+  const enabledFlags = useMemo(
+    () => [needResumo, needReceita, needProducao, needPlanejamento, needEstoque],
+    [needResumo, needReceita, needProducao, needPlanejamento, needEstoque],
+  )
+
+  const activeQueries = useMemo(
+    () => queries.filter((_, i) => enabledFlags[i]),
+    [queries, enabledFlags],
+  )
+
+  const isLoading = activeQueries.some((q) => q.isLoading)
+  const isFetching = activeQueries.some((q) => q.isFetching)
 
   return {
     resumo: resumo.data,
@@ -59,6 +104,8 @@ export function useRelatorioQueries(filtros: ReportFiltersInput | null) {
     producao: producao.data,
     planejamento: planejamento.data,
     estoque: estoque.data,
-    isPending: queries.some((q) => q.isPending),
+    isLoading,
+    isFetching,
+    activeKinds: relatorioQueriesForTab(tab),
   }
 }

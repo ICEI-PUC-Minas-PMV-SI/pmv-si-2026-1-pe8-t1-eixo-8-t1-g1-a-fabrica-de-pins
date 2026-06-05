@@ -5,6 +5,8 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 
+import { relatorioInvalidation } from '@/modules/reports/lib/report-query-keys'
+
 import type { ProductFormValues, TipoEstoqueProduto } from '@/schemas/product.schema'
 import {
   createProduct,
@@ -51,7 +53,7 @@ export function useCreateProductMutation() {
     mutationFn: (input: ProductFormValues) => createProduct(input),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['products'] })
-      void qc.invalidateQueries({ queryKey: ['report-snapshot'] })
+      relatorioInvalidation.onProductChange(qc)
     },
   })
 }
@@ -71,7 +73,7 @@ export function useUpdateProductMutation() {
       void qc.invalidateQueries({
         queryKey: ['products', 'detail', variables.id],
       })
-      void qc.invalidateQueries({ queryKey: ['report-snapshot'] })
+      relatorioInvalidation.onProductChange(qc)
       void qc.invalidateQueries({ queryKey: ['orders'] })
     },
   })

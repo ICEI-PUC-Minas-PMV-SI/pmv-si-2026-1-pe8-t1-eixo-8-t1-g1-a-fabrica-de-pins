@@ -5,6 +5,8 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 
+import { relatorioInvalidation } from '@/modules/reports/lib/report-query-keys'
+
 import type { OrderCreateValues, OrderUpdateValues } from '@/schemas/order.schema'
 import {
   createOrder,
@@ -39,7 +41,7 @@ export function useCreateOrderMutation() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['orders'] })
       void qc.invalidateQueries({ queryKey: ['products'] })
-      void qc.invalidateQueries({ queryKey: ['report-snapshot'] })
+      relatorioInvalidation.onOrderChange(qc)
     },
   })
 }
@@ -63,7 +65,7 @@ export function useUpdatePedidoCompletoMutation() {
       void qc.invalidateQueries({ queryKey: ['orders'] })
       void qc.invalidateQueries({ queryKey: ['orders', 'detail', id] })
       void qc.invalidateQueries({ queryKey: ['products'] })
-      void qc.invalidateQueries({ queryKey: ['report-snapshot'] })
+      relatorioInvalidation.onOrderChange(qc)
     },
   })
 }
@@ -81,7 +83,7 @@ export function useUpdateOrderMutation() {
     onSuccess: (_, { id }) => {
       void qc.invalidateQueries({ queryKey: ['orders'] })
       void qc.invalidateQueries({ queryKey: ['orders', 'detail', id] })
-      void qc.invalidateQueries({ queryKey: ['report-snapshot'] })
+      relatorioInvalidation.onOrderChange(qc)
     },
   })
 }
