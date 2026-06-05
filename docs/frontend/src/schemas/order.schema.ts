@@ -42,6 +42,12 @@ export const orderCreateSchema = z.object({
 export type OrderCreateInput = z.input<typeof orderCreateSchema>
 export type OrderCreateValues = z.infer<typeof orderCreateSchema>
 
+/** Edição: cliente não pode ser alterado — validação só dos demais campos. */
+export const orderEditSchema = orderCreateSchema.omit({ clienteId: true })
+
+export type OrderEditInput = z.input<typeof orderEditSchema>
+export type OrderEditValues = z.infer<typeof orderEditSchema>
+
 export const orderUpdateSchema = z.object({
   status: orderStatusEnum.optional(),
   modalidade: modalidadePedidoEnum.optional(),

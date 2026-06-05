@@ -71,9 +71,28 @@ const STATUS_FRONT_TO_API: Record<OrderStatus, string> = {
   reembolsado: 'REEMBOLSADO',
 }
 
+const FRONTEND_STATUS_VALUES = Object.keys(
+  STATUS_FRONT_TO_API,
+) as OrderStatus[]
+
+function readStatusFromApi(raw: unknown): string {
+  if (raw == null) return 'RASCUNHO'
+  if (typeof raw === 'string') return raw
+  if (typeof raw === 'object') {
+    const o = raw as Record<string, unknown>
+    if (typeof o.name === 'string') return o.name
+  }
+  return String(raw)
+}
+
 export function mapStatusApiToFrontend(s: string): OrderStatus {
-  const u = s.trim().toUpperCase()
-  return STATUS_API_TO_FRONT[u] ?? 'rascunho'
+  const trimmed = s.trim()
+  const u = trimmed.toUpperCase()
+  if (STATUS_API_TO_FRONT[u]) return STATUS_API_TO_FRONT[u]
+  if (FRONTEND_STATUS_VALUES.includes(trimmed as OrderStatus)) {
+    return trimmed as OrderStatus
+  }
+  return 'rascunho'
 }
 
 function mapStatusFrontendToApi(s: OrderStatus): string {
@@ -186,7 +205,9 @@ export function mapOrderFromApi(raw: unknown): Order {
     tipoCliente,
     itens,
     valorTotal: num(o.valorTotal),
-    status: mapStatusApiToFrontend(String(o.statusPedido ?? o.status ?? 'RASCUNHO')),
+    status: mapStatusApiToFrontend(
+      readStatusFromApi(o.statusPedido ?? o.status ?? 'RASCUNHO'),
+    ),
     modalidade:
       o.modalidadePedido !== undefined || o.modalidade !== undefined
         ? mapModalidadeFromApi(o.modalidadePedido ?? o.modalidade)

@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Trash2 } from 'lucide-react'
-import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useFieldArray, useForm, useWatch } from 'react-hook-form'
 
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -41,8 +42,12 @@ import {
 import { useProductsQuery } from '@/modules/products/hooks/useProducts'
 import {
   orderCreateSchema,
+  orderEditSchema,
   type OrderCreateInput,
   type OrderCreateValues,
+  type OrderEditInput,
+  type OrderEditValues,
+  type OrderStatus,
 } from '@/schemas/order.schema'
 import type { Cupom, Order } from '@/types'
 import { cn } from '@/utils/cn'
@@ -56,7 +61,7 @@ function emptyItem() {
   }
 }
 
-function orderToFormValues(o: Order): OrderCreateValues {
+function orderToFormValues(o: Order): OrderEditValues {
   const itens =
     o.itens.length > 0
       ? o.itens.map((i) => ({
@@ -66,13 +71,24 @@ function orderToFormValues(o: Order): OrderCreateValues {
         }))
       : [emptyItem()]
   return {
-    clienteId: o.clienteId,
     status: o.status,
     canalAquisicao: o.canalAquisicao,
     observacao: o.observacao ?? '',
     valorFrete: o.valorFrete ?? 0,
     cupons: o.cupomCodigos ?? [],
     itens,
+  }
+}
+
+function createEmptyFormValues(): OrderCreateInput {
+  return {
+    clienteId: '',
+    status: 'rascunho',
+    canalAquisicao: 'site',
+    observacao: '',
+    valorFrete: 0,
+    cupons: [],
+    itens: [emptyItem()],
   }
 }
 
@@ -88,13 +104,7 @@ export function OrderForm({
   orderId = null,
   onSuccess,
 }: OrderFormProps) {
-  const [submitError, setSubmitError] = useState<string | null>(null)
   const isEdit = mode === 'edit'
-  const { data: customers } = useCustomersQuery()
-  const { data: products } = useProductsQuery()
-  const { data: cuponsDisponiveis } = useCuponsQuery()
-  const createOrder = useCreateOrderMutation()
-  const updatePedido = useUpdatePedidoCompletoMutation()
   const {
     data: orderDetail,
     isPending: detailPending,
@@ -103,17 +113,65 @@ export function OrderForm({
     refetch: refetchDetail,
   } = useOrderQuery(isEdit ? orderId : null)
 
-  const form = useForm<OrderCreateInput, unknown, OrderCreateValues>({
-    resolver: zodResolver(orderCreateSchema),
-    defaultValues: {
-      clienteId: '',
-      status: 'rascunho',
-      canalAquisicao: 'site',
-      observacao: '',
-      valorFrete: 0,
-      cupons: [],
-      itens: [emptyItem()],
-    },
+  if (isEdit) {
+    if (detailError) {
+      return (
+        <ErrorState
+          message={
+            detailErr instanceof Error ? detailErr.message : 'Erro ao carregar'
+          }
+          onRetry={() => void refetchDetail()}
+        />
+      )
+    }
+
+    if (detailPending || !orderDetail) {
+      return <LoadingState rows={8} />
+    }
+
+    return (
+      <OrderFormBody
+        mode="edit"
+        orderId={orderId!}
+        initialOrder={orderDetail}
+        onSuccess={onSuccess}
+      />
+    )
+  }
+
+  return <OrderFormBody mode="create" onSuccess={onSuccess} />
+}
+
+type OrderFormBodyProps = {
+  mode: 'create' | 'edit'
+  orderId?: string | null
+  initialOrder?: Order
+  onSuccess?: () => void
+}
+
+function OrderFormBody({
+  mode,
+  orderId = null,
+  initialOrder,
+  onSuccess,
+}: OrderFormBodyProps) {
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const isEdit = mode === 'edit'
+  const { data: customers } = useCustomersQuery()
+  const { data: products } = useProductsQuery()
+  const { data: cuponsDisponiveis } = useCuponsQuery()
+  const createOrder = useCreateOrderMutation()
+  const updatePedido = useUpdatePedidoCompletoMutation()
+
+  const form = useForm<
+    OrderCreateInput | OrderEditInput,
+    unknown,
+    OrderCreateValues | OrderEditValues
+  >({
+    resolver: zodResolver(isEdit ? orderEditSchema : orderCreateSchema),
+    defaultValues: initialOrder
+      ? orderToFormValues(initialOrder)
+      : createEmptyFormValues(),
   })
 
   const { fields, append, remove } = useFieldArray({
@@ -141,11 +199,6 @@ export function OrderForm({
     })
     return m
   }, [cuponsDisponiveis])
-
-  useLayoutEffect(() => {
-    if (!isEdit || !orderDetail) return
-    form.reset(orderToFormValues(orderDetail))
-  }, [isEdit, orderDetail, form])
 
   function toggleCupomCodigo(codigo: string, checked: boolean) {
     const cur = form.getValues('cupons') ?? []
@@ -203,7 +256,7 @@ export function OrderForm({
     descontoEstimado,
   )
 
-  async function onSubmit(values: OrderCreateValues) {
+  async function onSubmit(values: OrderCreateValues | OrderEditValues) {
     setSubmitError(null)
     if (!products?.length) return
 
@@ -221,9 +274,24 @@ export function OrderForm({
       })
     }
 
-    const payload: OrderCreateValues = {
-      ...values,
-      itens: itensResolved,
+    let payload: OrderCreateValues
+
+    if (isEdit) {
+      const clienteId = initialOrder?.clienteId?.trim()
+      if (!clienteId) {
+        setSubmitError('Pedido sem cliente vinculado — não é possível salvar.')
+        return
+      }
+      payload = {
+        ...values,
+        clienteId,
+        itens: itensResolved,
+      }
+    } else {
+      payload = {
+        ...(values as OrderCreateValues),
+        itens: itensResolved,
+      }
     }
 
     try {
@@ -231,15 +299,7 @@ export function OrderForm({
         await updatePedido.mutateAsync({ id: orderId, input: payload })
       } else {
         await createOrder.mutateAsync(payload)
-        form.reset({
-          clienteId: '',
-          status: 'rascunho',
-          canalAquisicao: 'site',
-          observacao: '',
-          valorFrete: 0,
-          cupons: [],
-          itens: [emptyItem()],
-        })
+        form.reset(createEmptyFormValues())
       }
       onSuccess?.()
     } catch (e) {
@@ -249,25 +309,7 @@ export function OrderForm({
     }
   }
 
-  const pending =
-    createOrder.isPending ||
-    updatePedido.isPending ||
-    (isEdit && detailPending)
-
-  if (isEdit && detailError) {
-    return (
-      <ErrorState
-        message={
-          detailErr instanceof Error ? detailErr.message : 'Erro ao carregar'
-        }
-        onRetry={() => void refetchDetail()}
-      />
-    )
-  }
-
-  if (isEdit && detailPending && !orderDetail) {
-    return <LoadingState rows={8} />
-  }
+  const pending = createOrder.isPending || updatePedido.isPending
 
   return (
     <Form {...form}>
@@ -275,47 +317,52 @@ export function OrderForm({
         onSubmit={form.handleSubmit(onSubmit)}
         className="grid gap-5 md:grid-cols-2"
       >
-        <FormField
-          control={form.control}
-          name="clienteId"
-          render={({ field }) => {
-            const selected = customers?.find((c) => c.id === field.value)
-            const selectedLabel =
-              selected?.nome || orderDetail?.clienteNome || undefined
-            const selectedMissing =
-              Boolean(field.value) && !selected && Boolean(selectedLabel)
+        {isEdit ? (
+          <div className="space-y-2">
+            <Label>Cliente</Label>
+            <Input
+              readOnly
+              disabled
+              value={initialOrder?.clienteNome ?? '—'}
+              className="bg-muted"
+            />
+            <p className="text-sm text-muted-foreground">
+              O cliente do pedido não pode ser alterado.
+            </p>
+          </div>
+        ) : (
+          <FormField
+            control={form.control}
+            name="clienteId"
+            render={({ field }) => {
+              const selected = customers?.find((c) => c.id === field.value)
+              const selectedLabel = selected?.nome
 
-            return (
-              <FormItem>
-                <FormLabel>Cliente</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  value={field.value}
-                  disabled={isEdit}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione">
-                        {selectedLabel}
-                      </SelectValue>
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {selectedMissing ? (
-                      <SelectItem value={field.value}>{selectedLabel}</SelectItem>
-                    ) : null}
-                    {customers?.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )
-          }}
-        />
+              return (
+                <FormItem>
+                  <FormLabel>Cliente</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione">
+                          {selectedLabel}
+                        </SelectValue>
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {customers?.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )
+            }}
+          />
+        )}
 
         <FormField
           control={form.control}
@@ -610,13 +657,20 @@ export function OrderForm({
         <FormField
           control={form.control}
           name="status"
-          render={({ field }) => (
+          render={({ field }) => {
+            const statusLabel = field.value
+              ? orderStatusLabel[field.value as OrderStatus]
+              : undefined
+
+            return (
             <FormItem className="md:col-span-2">
               <FormLabel>Status</FormLabel>
               <Select onValueChange={field.onChange} value={field.value}>
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Selecione">
+                      {statusLabel}
+                    </SelectValue>
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
@@ -638,7 +692,8 @@ export function OrderForm({
               </p>
               <FormMessage />
             </FormItem>
-          )}
+            )
+          }}
         />
         {submitError ? (
           <p className="md:col-span-2 text-sm text-destructive" role="alert">
