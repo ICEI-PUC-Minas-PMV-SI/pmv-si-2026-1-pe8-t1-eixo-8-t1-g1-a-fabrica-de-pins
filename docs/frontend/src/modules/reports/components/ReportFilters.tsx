@@ -110,9 +110,12 @@ export function ReportFilters({
             type="date"
             className="h-9"
             value={value.dataInicio}
-            onChange={(e) =>
-              onChange({ ...value, dataInicio: e.target.value })
-            }
+            max={value.dataFim || undefined}
+            onChange={(e) => {
+              const dataInicio = e.target.value
+              if (value.dataFim && dataInicio > value.dataFim) return
+              onChange({ ...value, dataInicio })
+            }}
           />
         </div>
         <div className="grid gap-1">
@@ -124,9 +127,12 @@ export function ReportFilters({
             type="date"
             className="h-9"
             value={value.dataFim}
-            onChange={(e) =>
-              onChange({ ...value, dataFim: e.target.value })
-            }
+            min={value.dataInicio || undefined}
+            onChange={(e) => {
+              const dataFim = e.target.value
+              if (value.dataInicio && dataFim < value.dataInicio) return
+              onChange({ ...value, dataFim })
+            }}
           />
         </div>
         <div className="grid gap-1">
